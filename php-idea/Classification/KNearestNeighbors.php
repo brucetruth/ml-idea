@@ -5,8 +5,8 @@
 	private $max = 0;
      /**
       @param 
-         $max: int:'number of sets of datasets.
-         $output: boolean
+         *max: int:'number of sets of datasets.
+         *output: boolean
      */
 	function __construct($max, $output) {
         $this->max = $max;
