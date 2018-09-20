@@ -1,4 +1,4 @@
-# php-idea - Machine Learning library for PHP
+# ml-idea - Machine Learning library / algorithims 
 [![Minimum PHP Version](https://img.shields.io/badge/php-%3E%3D%207.1-8892BF.svg)](https://php.net/)
 [![GitHub issues](https://img.shields.io/github/issues/brucetruth/ml-idea.svg)](https://github.com/brucetruth/ml-idea/issues)
 [![GitHub license](https://img.shields.io/github/license/brucetruth/ml-idea.svg)](https://github.com/brucetruth/ml-idea/blob/master/LICENSE)
