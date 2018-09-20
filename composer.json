@@ -1,5 +1,5 @@
 {
-    "name": "brucetruth/php-idea",
+    "name": "brucetruth/ml-idea",
     "description": "A Machine Learning library for PHP",
     "require": {
         "php": "^7.0"
