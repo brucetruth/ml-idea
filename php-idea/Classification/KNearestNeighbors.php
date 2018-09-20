@@ -4,7 +4,7 @@
 	private $data = array();
 	private $max = 0;
      /**
-      @param 
+      *@param 
          *max: int:'number of sets of datasets.
          *output: boolean
      */
