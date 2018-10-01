@@ -1,4 +1,7 @@
 <?php
+
+ include '../utils/Timer.php';
+
  class KNearestNeighbors {
 	private $output = false;
 	private $data = array();
