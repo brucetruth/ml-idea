@@ -1,5 +1,18 @@
 <?php
 
+/*
+Bruce Mubangwa 
+2016
+
+
+This algorithm can be applied to both classification and regression problems.
+Apparently, within the Data Science industry, it's more widely used to solve classification problems. 
+It’s a simple algorithm that stores all available cases and classifies any new cases by taking a majority vote of its k neighbors. 
+The case is then assigned to the class with which it has the most in common. 
+A distance function performs this measurement.
+*/
+
+
  include '../utils/Timer.php';
 
  class KNearestNeighbors {
