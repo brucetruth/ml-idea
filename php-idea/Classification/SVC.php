@@ -1,6 +1,6 @@
 <?php
 
-include '../utils.php';
+include '../utils/Functions.php';
 
 class SVC {
 	private $data = array();
