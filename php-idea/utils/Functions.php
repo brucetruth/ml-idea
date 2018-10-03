@@ -2,7 +2,7 @@
 
 include 'Timer.php';
 
-lass Distance {
+class Distance {
 	function euclidean($point1, $point2){
 		$calc = 0;
 		$countPoint1 = count($point1);
