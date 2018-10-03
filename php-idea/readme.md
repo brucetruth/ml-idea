@@ -5,7 +5,7 @@
   ```php
   
 include 'Classification/KNearestNegbours.php';
-$samples = [[1, 3], [1, 4], [2, 4], [3, 1], [4, 1], [4, 2];
+$samples = [[1, 3], [1, 4], [2, 4], [3, 1], [4, 1], [4, 2]];
 $labels = ['a', 'a', 'b', 'b', 'c', 'c'];
 $classifier = new KNearestNeighbors(6, true);
 $classifier->train($samples, $labels);
