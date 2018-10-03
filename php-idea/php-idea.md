@@ -1,6 +1,6 @@
 <p> Classification algorithms examples </p>
 <b>1. KNearestNegbours</b>
-<p><code>
+<code>
   
 include 'Classification/KNearestNegbours.php';
 $samples = [[1, 3], [1, 4], [2, 4], [3, 1], [4, 1], [4, 2];
@@ -12,4 +12,4 @@ echo "<pre>";
 print_r($data);
 echo "</pre>";
 
-</code></p>
+</code>
