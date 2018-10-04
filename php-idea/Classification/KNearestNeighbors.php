@@ -13,7 +13,7 @@ A distance function performs this measurement.
 */
 
 
- include '../utils/Timer.php';
+ include '../utils/Functions.php';
 
  class KNearestNeighbors {
 	private $output = false;
