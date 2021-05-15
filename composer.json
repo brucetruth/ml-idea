@@ -1,7 +1,8 @@
 {
     "name": "brucetruth/ml-idea",
+    "homepage": "https://github.com/rucetruth/ml-idea",
     "description": "A Machine Learning library for PHP",
-    "type": "Library",
+    "type": "library",
     "license": "MIT",
     "keywords": [
       "AI",
