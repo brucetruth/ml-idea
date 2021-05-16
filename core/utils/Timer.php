@@ -1,18 +1,20 @@
 <?php
 
+namespace ML\IDEA\Utils;
+
 class Timer {
 	private $start;
 	private $finish;
 
-	function start(){
+	public function start(){
 		$this->start = microtime(true);
 	}
 
-	function finish(){
+	public function finish(){
 		$this->finish = microtime(true);
 	}
 
-	function runtime() {
+	public function runtime() {
 		return ($this->finish-$this->start)*10;
 	}
 }
