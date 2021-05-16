@@ -1,24 +1,26 @@
 <?php
 
-include '../utils/Functions.php';
+namespace ML\IDEA\Classifiers;
+
+use ML\IDEA\Utils\Timer;
 
 class SVC {
 	private $data = array();
 	private $output = false;
 	
-	function __construct($output) {
+	public function __construct( $output ) {
         $this->output = $output;
     }
-	function train($samples, $labels) {
+	public function train( $samples, $labels ) {
 		$countSamples = count($samples);
 		$countLabels = count($labels);
-		if($countSamples == $countLabels) {
+		if($countSamples === $countLabels) {
 			for($x = 0; $x<$countSamples; $x++) {
 				$this->data[] = [$labels[$x], $samples[$x]];
 			}
 		}
 	}
-	function predict($point) {
+	public function predict( $point ) {
 		$timer = new Timer();
 		$timer->start();
 		$slopef = 0;
@@ -26,7 +28,7 @@ class SVC {
 		$list = array();
 		
 		foreach($this->data as $value) {
-			if(!in_array($value[0], $list)) {
+			if(!in_array($value[0], $list, true)) {
 				$list[] = $value[0];
 			}
 		}
@@ -38,7 +40,7 @@ class SVC {
 			$xx = 0;
 			$yy = 0;
 			foreach($this->data as $value) {
-				if($sample[0] != $value[0]) {
+				if($sample[0] !== $value[0]) {
 					$count++;
 					$ysum += $value[1][0];
 					$xsum += $value[1][1];
@@ -47,15 +49,15 @@ class SVC {
 			$ymean = $ysum/$count;
 			$xmean = $xsum/$count;
 			foreach($this->data as $value) {
-				if($sample[0] != $value[0]) {
+				if($sample[0] !== $value[0]) {
 					$xx += ($value[1][1]-$xmean)*($value[1][0]-$ymean);
 					$yy += ($value[1][1]-$xmean)*($value[1][1]-$xmean);
 				}
 			}
 			$slope = $xx/$yy;
 			$b = $ymean-($slope*$xmean);
-			for ($x = 0; $x < count($list); $x++) {
-				if($sample[0] == $list[$x][0]) {
+			foreach ($list as $xValue) {
+				if($sample[0] === $xValue[0]) {
 					$list[] = [$slope, $b];
 				}
 			}
@@ -69,41 +71,41 @@ class SVC {
 		$s1 = ($point[1])-($s1);
 		if($s1 < 0) {
 			if($list[2][1] < $list[3][1]) {
-				if($this->output == true) {
+				if($this->output === true) {
 					$timer->finish();
 					return array($list[0], $timer->runtime());
-				} else {
-					$timer->finish();
-					return array($list[0]);
 				}
-			} else {
-				if($this->output == true) {
-					$timer->finish();
-					return array($list[1], $timer->runtime());
-				} else {
-					$timer->finish();
-					return array($list[1]);
-				}
+
+				$timer->finish();
+				return array($list[0]);
 			}
-		} else {
-			if($list[2][1] > $list[3][1]) {
-				if($this->output == true) {
-					$timer->finish();
-					return array($list[0], $timer->runtime());
-				} else {
-					$timer->finish();
-					return array($list[0]);
-				}
-			} else {
-				if($this->output == true) {
-					$timer->finish();
-					return array($list[1], $timer->runtime());
-				} else {
-					$timer->finish();
-					return array($list[1]);
-				}
+
+			if($this->output === true) {
+				$timer->finish();
+				return array($list[1], $timer->runtime());
 			}
+
+			$timer->finish();
+			return array($list[1]);
 		}
+
+		if($list[2][1] > $list[3][1]) {
+			if($this->output === true) {
+				$timer->finish();
+				return array($list[0], $timer->runtime());
+			}
+
+			$timer->finish();
+			return array($list[0]);
+		}
+
+		if($this->output === true) {
+			$timer->finish();
+			return array($list[1], $timer->runtime());
+		}
+
+		$timer->finish();
+		return array($list[1]);
 	}
 
 }
