@@ -1,0 +1,6 @@
+ml-idea local knowledge base
+
+- Model persistence can be done with ModelSerializer and model save/load methods.
+- RAG chain supports citations and diagnostics in ask() output.
+- Hybrid retrieval combines lexical and dense relevance scores.
+- ToolCallingAgent can invoke rag_qa, weather, and free_api tools.
