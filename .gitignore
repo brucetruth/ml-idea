@@ -3,3 +3,4 @@ composer.lock
 .phpunit.cache/test-results
 /.idea
 *.cache
+*.json
