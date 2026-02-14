@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ML\IDEA\RAG\LLM;
 
 use ML\IDEA\Exceptions\InvalidArgumentException;
+use ML\IDEA\Exceptions\SerializationException;
 use ML\IDEA\RAG\Contracts\HttpTransportInterface;
 use ML\IDEA\RAG\Contracts\ToolRoutingModelInterface;
 use ML\IDEA\RAG\Http\SimpleHttpTransport;
@@ -37,12 +38,29 @@ final class AzureOpenAIToolRoutingModel implements ToolRoutingModelInterface
             ['api-key' => $this->apiKey],
             [
                 'messages' => $this->toProviderMessages($messages, $tools),
-                'temperature' => 0.1,
+                // gpt-5 mini/nano Azure deployments currently only support the default temperature (1).
+                'temperature' => $this->resolveTemperature(),
             ]
         );
 
+        if (isset($response['error']) && is_array($response['error'])) {
+            $message = isset($response['error']['message']) ? (string) $response['error']['message'] : 'Unknown Azure OpenAI error.';
+            $code = isset($response['error']['code']) ? (string) $response['error']['code'] : 'unknown_error';
+            throw new SerializationException(sprintf('Azure OpenAI request failed (%s): %s', $code, $message));
+        }
+
         $content = (string) ($response['choices'][0]['message']['content'] ?? '');
         return ToolRoutingDecisionParser::parse($content);
+    }
+
+    private function resolveTemperature(): float|int
+    {
+        $deployment = strtolower($this->deployment);
+        if (str_contains($deployment, 'mini') || str_contains($deployment, 'nano')) {
+            return 1;
+        }
+
+        return 0.1;
     }
 
     /**
