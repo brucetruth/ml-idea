@@ -48,8 +48,8 @@ $chain->index([new Document('kb-1', $kbText)]);
 
 $router = match ($provider) {
     'azure' => new AzureOpenAIToolRoutingModel(
-        (string) getenv('AZURE_OPENAI_API_KEY'), //85ygiejqy17mwJtVTlbsAzTXAPP4H6jucX7NNN7ceuXHnrISsf1pJQQJ99CBACHYHv6XJ3w3AAAAACOGeiV5
-        (string) getenv('AZURE_OPENAI_ENDPOINT'), // https://ai-broosdev444432544923.openai.azure.com
+        (string) getenv('AZURE_OPENAI_API_KEY'),
+        (string) getenv('AZURE_OPENAI_ENDPOINT'), 
         (string) getenv('AZURE_OPENAI_CHAT_DEPLOYMENT') //gpt-5-mini
            //api-version: 2024-12-01-preview
     ),
