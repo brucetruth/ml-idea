@@ -50,7 +50,8 @@ $router = match ($provider) {
     'azure' => new AzureOpenAIToolRoutingModel(
         (string) getenv('AZURE_OPENAI_API_KEY'),
         (string) getenv('AZURE_OPENAI_ENDPOINT'),
-        (string) getenv('AZURE_OPENAI_CHAT_DEPLOYMENT')
+        (string) getenv('AZURE_OPENAI_CHAT_DEPLOYMENT') //gpt-5-mini
+           //api-version: 2024-12-01-preview
     ),
     'ollama' => new OllamaToolRoutingModel(
         (string) (getenv('OLLAMA_MODEL') ?: 'llama3.1')
