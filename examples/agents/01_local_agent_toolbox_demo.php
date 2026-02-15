@@ -8,10 +8,11 @@ ini_set('memory_limit', '768M');
 
 use ML\IDEA\RAG\Agents\ToolCallingAgent;
 use ML\IDEA\RAG\Chains\RetrievalQAChain;
+use ML\IDEA\RAG\Contracts\LlmClientInterface;
 use ML\IDEA\RAG\Contracts\ToolInterface;
 use ML\IDEA\RAG\Document;
 use ML\IDEA\RAG\Embeddings\HashEmbedder;
-use ML\IDEA\RAG\LLM\EchoLlmClient;
+use ML\IDEA\RAG\LLM\LlmClientFactory;
 use ML\IDEA\RAG\Rerankers\LexicalOverlapReranker;
 use ML\IDEA\RAG\Splitters\RecursiveTextSplitter;
 use ML\IDEA\RAG\Tools\FreeApiGetTool;
@@ -26,11 +27,16 @@ $offline = $offline === false ? true : !in_array(strtolower((string) $offline), 
 $kbPath = __DIR__ . '/knowledge_base.txt';
 $kbText = is_file($kbPath) ? (string) file_get_contents($kbPath) : '';
 
+// Local default for deterministic demo behavior.
+// Set RAG_LLM_PROVIDER=openai|azure|ollama|echo to switch providers.
+/** @var LlmClientInterface $llm */
+$llm = LlmClientFactory::fromEnv();
+
 $chain = new RetrievalQAChain(
     new HashEmbedder(24),
     new InMemoryVectorStore(),
     new RecursiveTextSplitter(160, 30),
-    new EchoLlmClient(),
+    $llm,
     new LexicalOverlapReranker(),
 );
 $chain->index([
