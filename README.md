@@ -171,3 +171,12 @@ See runnable use-case scripts in [`examples/`](examples/README.md):
 - Feature preprocessing (normalization, encoding)
 - Cross-validation utilities
 - Dataset loaders and richer benchmarking tools
+- Context and chat history handling for the Tool Routing Agent
+- Tool reliability layer for agents (timeouts, retries, fallbacks, structured errors)
+- Policy and safety guardrails (tool allow/deny rules, injection checks, PII-safe logs)
+- Improved routing quality (confidence scoring, clarification turn, top-k tool candidates)
+- Observability + evaluation harness for routing/tool accuracy regressions
+- Memory strategy beyond raw history (summaries, pruning, retrieval-based recall)
+- Cost/latency controls (model tiering, caching, token budgets)
+- Human-in-the-loop controls for risky actions and execution approvals
+- Output quality controls (schema validation, grounding/citation checks, consistency pass)
