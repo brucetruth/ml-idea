@@ -31,7 +31,7 @@ final class DbQueryTool implements ToolInterface
 
     public function description(): string
     {
-        return 'Executes parameterized SQL. Input: {"sql":"SELECT ... WHERE id = :id", "params":{"id":1}}';
+        return 'Executes parameterized SQL allowed table_names include ['.json_encode($this->allowedTables).'], user might misspell table names, so understand user question and match with the required tables, tables access policy is currently: '.$this->readOnly.' you are allowed to pre-run other queries to understand table structures. Input: {"sql":"SELECT ... WHERE id = :id", "params":{"id":1}}';
     }
 
     public function invoke(array $input): string
