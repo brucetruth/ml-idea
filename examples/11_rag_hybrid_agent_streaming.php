@@ -6,20 +6,26 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use ML\IDEA\RAG\Agents\ToolCallingAgent;
 use ML\IDEA\RAG\Chains\RetrievalQAChain;
+use ML\IDEA\RAG\Contracts\LlmClientInterface;
 use ML\IDEA\RAG\Document;
 use ML\IDEA\RAG\Embeddings\HashEmbedder;
-use ML\IDEA\RAG\LLM\EchoLlmClient;
+use ML\IDEA\RAG\LLM\LlmClientFactory;
 use ML\IDEA\RAG\QueryExpansion\SimpleQueryExpander;
 use ML\IDEA\RAG\Rerankers\LexicalOverlapReranker;
 use ML\IDEA\RAG\Splitters\RecursiveTextSplitter;
 use ML\IDEA\RAG\Tools\RetrievalQaTool;
 use ML\IDEA\RAG\VectorStore\InMemoryVectorStore;
 
+// Local default for demo determinism.
+// Set RAG_LLM_PROVIDER=openai|azure|ollama|echo to switch providers.
+/** @var LlmClientInterface $llm */
+$llm = LlmClientFactory::fromEnv();
+
 $chain = new RetrievalQAChain(
     new HashEmbedder(24),
     new InMemoryVectorStore(),
     new RecursiveTextSplitter(120, 20),
-    new EchoLlmClient(),
+    $llm,
     new LexicalOverlapReranker(),
     new SimpleQueryExpander(3),
 );

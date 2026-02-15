@@ -7,7 +7,6 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use ML\IDEA\Classifiers\LogisticRegression;
 use ML\IDEA\Dataset\Registry\DatasetCache;
 use ML\IDEA\Dataset\Registry\DatasetIndex;
-use ML\IDEA\Dataset\Services\GeoDatasetService;
 use ML\IDEA\Geo\GeoFeatureBuilder;
 use ML\IDEA\Geo\GeoService;
 
@@ -22,8 +21,7 @@ if (!is_dir($geoCacheDir)) {
 $index = new DatasetIndex(cache: new DatasetCache($geoCacheDir));
 $geo = new GeoService(index: $index);
 
-// Optional custom dataset usage:
-// $geo = new GeoService(new GeoDatasetService('/absolute/path/to/geo'));
+// Optional override only (not required): you may pass a custom GeoDatasetService.
 $builder = new GeoFeatureBuilder($geo);
 
 $coordinates = [
