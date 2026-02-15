@@ -61,52 +61,64 @@ php examples/01_basic_classification.php
 16. `agents/04_db_query_tool_demo.php`
    - read-only DB query tool demo with routing agent + math tool
 
-17. `13_vision_palette_extraction.php`
+17. `agents/07_custom_rag_tool_demo.php`
+   - custom `ToolInterface` implementation wired into `ToolRoutingAgent`
+
+18. `agents/08_custom_tool_routing_model_demo.php`
+   - custom `ToolRoutingModelInterface` implementation (provider/router customization)
+
+19. `agents/09_custom_embedder_demo.php`
+   - custom `EmbedderInterface` + custom query expansion in a retrieval chain
+
+20. `agents/10_custom_llm_client_demo.php`
+   - custom `LlmClientInterface` implementation for RetrievalQAChain
+
+21. `13_vision_palette_extraction.php`
    - generic image feature pipeline used to extract dominant color palette
 
-18. `14_vision_content_risk_demo.php`
+22. `14_vision_content_risk_demo.php`
    - generic image analysis pipeline for skin-tone risk heuristics + palette summary
 
-19. `15_vision_authenticity_risk_demo.php`
+23. `15_vision_authenticity_risk_demo.php`
    - heuristic AI-generation authenticity-risk analysis from metadata + visual signals
 
-20. `16_nlp_text_api_and_pos.php`
+24. `16_nlp_text_api_and_pos.php`
    - fluent Text API demo (normalization, PII masking, tokenization) + POS tagging baseline
 
-21. `17_nlp_bm25_and_similarity.php`
+25. `17_nlp_bm25_and_similarity.php`
    - BM25 retrieval demo + hashing vectorization + cosine similarity
 
-22. `18_nlp_multilingual_ner.php`
+26. `18_nlp_multilingual_ner.php`
    - multilingual POS tagging + rule-based NER with custom gazetteer
 
-23. `19_nlp_extensibility_custom_profiles.php`
+27. `19_nlp_extensibility_custom_profiles.php`
    - extending language profiles and POS lexicon customization
 
-24. `20_nlp_trainable_pos_ner.php`
+28. `20_nlp_trainable_pos_ner.php`
    - trainable perceptron-style POS and NER pipeline usage
 
-25. `21_geo_service_and_ner.php`
+29. `21_geo_service_and_ner.php`
    - GEO dataset wrapper usage + geo-aware NER gazetteer integration
 
-26. `22_sentiment_and_translation.php`
+30. `22_sentiment_and_translation.php`
    - sentiment analyzer training/inference + English-to-Bemba dictionary translation
 
-27. `23_ml_geo_foundation.php`
+31. `23_ml_geo_foundation.php`
    - geo feature building + simple ML classification baseline
 
-28. `24_nlp_semantic_explorer.php`
-   - bi-directional semantics: word→synonyms/definition and meaning→matching words
+32. `24_nlp_semantic_explorer.php`
+   - bi-directional semantics using bundled WordNet + dictionary datasets by default
 
-29. `25_dataset_registry_and_indexes.php`
+33. `25_dataset_registry_and_indexes.php`
    - managed dataset registry, integrity report, and compiled index usage
 
-30. `26_ner_gazetteer_geo_aware.php`
+34. `26_ner_gazetteer_geo_aware.php`
    - Aho-Corasick gazetteer NER + alias handling + geo-aware disambiguation flow
 
-31. `27_geo_chunked_index_build.php`
+35. `27_geo_chunked_index_build.php`
    - chunked geo index compile + file-persisted cache for low-memory reuse
 
-32. `28_hyperparams_and_random_state.php`
+36. `28_hyperparams_and_random_state.php`
    - contract helpers demo: `fit`, `getParams`, `setParams`, `cloneWithParams`, `setRandomState`
 
 ## Artifacts

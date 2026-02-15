@@ -5,9 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use ML\IDEA\RAG\Chains\RetrievalQAChain;
+use ML\IDEA\RAG\Contracts\LlmClientInterface;
 use ML\IDEA\RAG\Document;
 use ML\IDEA\RAG\Embeddings\HashEmbedder;
-use ML\IDEA\RAG\LLM\EchoLlmClient;
+use ML\IDEA\RAG\LLM\LlmClientFactory;
 use ML\IDEA\RAG\Splitters\RecursiveTextSplitter;
 use ML\IDEA\RAG\VectorStore\InMemoryVectorStore;
 
@@ -17,11 +18,16 @@ $docs = [
     new Document('doc-3', 'Calibration tools include CalibratedClassifierCV and ThresholdTuner for probability workflows.'),
 ];
 
+// Default local LLM stub for deterministic demos.
+// Set RAG_LLM_PROVIDER=openai|azure|ollama|echo to switch providers.
+/** @var LlmClientInterface $llm */
+$llm = LlmClientFactory::fromEnv();
+
 $chain = new RetrievalQAChain(
     new HashEmbedder(24),
     new InMemoryVectorStore(),
     new RecursiveTextSplitter(chunkSize: 120, chunkOverlap: 20),
-    new EchoLlmClient(),
+    $llm,
 );
 
 $chain->index($docs);

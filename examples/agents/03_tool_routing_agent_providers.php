@@ -6,11 +6,12 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 
 use ML\IDEA\RAG\Agents\ToolRoutingAgent;
 use ML\IDEA\RAG\Chains\RetrievalQAChain;
+use ML\IDEA\RAG\Contracts\LlmClientInterface;
 use ML\IDEA\RAG\Document;
 use ML\IDEA\RAG\Embeddings\AzureOpenAIEmbedder;
 use ML\IDEA\RAG\Embeddings\HashEmbedder;
 use ML\IDEA\RAG\LLM\AzureOpenAIToolRoutingModel;
-use ML\IDEA\RAG\LLM\EchoLlmClient;
+use ML\IDEA\RAG\LLM\LlmClientFactory;
 use ML\IDEA\RAG\LLM\OllamaToolRoutingModel;
 use ML\IDEA\RAG\LLM\OpenAIToolRoutingModel;
 use ML\IDEA\RAG\Rerankers\LexicalOverlapReranker;
@@ -37,11 +38,16 @@ $embedder = getenv('AZURE_OPENAI_API_KEY') && getenv('AZURE_OPENAI_ENDPOINT') &&
     )
     : new HashEmbedder(32);
 
+// QA generation uses the same provider switch mechanism:
+// RAG_LLM_PROVIDER=openai|azure|ollama|echo
+/** @var LlmClientInterface $qaLlm */
+$qaLlm = LlmClientFactory::fromEnv();
+
 $chain = new RetrievalQAChain(
     $embedder,
     new InMemoryVectorStore(),
     new RecursiveTextSplitter(220, 40),
-    new EchoLlmClient(),
+    $qaLlm,
     new LexicalOverlapReranker(),
 );
 $chain->index([new Document('kb-1', $kbText)]);

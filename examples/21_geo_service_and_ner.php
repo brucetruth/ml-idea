@@ -12,7 +12,7 @@ use ML\IDEA\NLP\Ner\RuleBasedNerTagger;
 echo "Example 21 - GEO Service + GEO-aware NER\n";
 
 // Real bundled dataset (default): src/Dataset/geo
-// If your environment has low memory, increase memory or use a custom lightweight dataset path.
+// If your environment has low memory, increase memory limit first.
 ini_set('memory_limit', '768M');
 $geoCacheDir = __DIR__ . '/artifacts/geo_index_cache';
 if (!is_dir($geoCacheDir)) {
@@ -21,9 +21,7 @@ if (!is_dir($geoCacheDir)) {
 $index = new DatasetIndex(cache: new DatasetCache($geoCacheDir));
 $geo = new GeoService(index: $index);
 
-// Optional custom dataset usage:
-// use ML\IDEA\Dataset\Services\GeoDatasetService;
-// $geo = new GeoService(new GeoDatasetService('/absolute/path/to/geo'));
+// Optional override only (not required): you may pass a custom GeoDatasetService.
 
 $country = $geo->country('ZM');
 echo 'Country (ZM): ' . (($country['name'] ?? 'n/a')) . PHP_EOL;

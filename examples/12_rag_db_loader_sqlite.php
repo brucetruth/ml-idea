@@ -5,8 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use ML\IDEA\RAG\Chains\RetrievalQAChain;
+use ML\IDEA\RAG\Contracts\LlmClientInterface;
 use ML\IDEA\RAG\Embeddings\HashEmbedder;
-use ML\IDEA\RAG\LLM\EchoLlmClient;
+use ML\IDEA\RAG\LLM\LlmClientFactory;
+use ML\IDEA\RAG\LLM\OpenAILlmClient;
 use ML\IDEA\RAG\Loaders\PdoLoader;
 use ML\IDEA\RAG\QueryExpansion\SimpleQueryExpander;
 use ML\IDEA\RAG\Rerankers\LexicalOverlapReranker;
@@ -43,11 +45,20 @@ $loader = new PdoLoader(
     metadataFields: ['topic', 'source']
 );
 
+// Local default for deterministic/demo usage.
+// Set RAG_LLM_PROVIDER=openai|azure|ollama|echo to switch providers.
+/** @var LlmClientInterface $llm */
+$llm = LlmClientFactory::fromEnv();
+//$llm = new OpenAILlmClient(
+//    (string) getenv('OPENAI_API_KEY'),
+//    (string) (getenv('OPENAI_CHAT_MODEL') ?: 'gpt-4o-mini')
+//),
+
 $chain = new RetrievalQAChain(
     new HashEmbedder(24),
     new InMemoryVectorStore(),
     new RecursiveTextSplitter(120, 20),
-    new EchoLlmClient(),
+    $llm,
     new LexicalOverlapReranker(),
     new SimpleQueryExpander(2),
 );

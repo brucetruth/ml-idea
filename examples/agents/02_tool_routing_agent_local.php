@@ -8,8 +8,11 @@ use ML\IDEA\RAG\Agents\ToolRoutingAgent;
 use ML\IDEA\RAG\Chains\RetrievalQAChain;
 use ML\IDEA\RAG\Document;
 use ML\IDEA\RAG\Embeddings\HashEmbedder;
-use ML\IDEA\RAG\LLM\EchoLlmClient;
+use ML\IDEA\RAG\LLM\LlmClientFactory;
+use ML\IDEA\RAG\LLM\AzureOpenAIToolRoutingModel;
 use ML\IDEA\RAG\LLM\HeuristicToolRoutingModel;
+use ML\IDEA\RAG\LLM\OllamaToolRoutingModel;
+use ML\IDEA\RAG\LLM\OpenAIToolRoutingModel;
 use ML\IDEA\RAG\Rerankers\LexicalOverlapReranker;
 use ML\IDEA\RAG\Splitters\RecursiveTextSplitter;
 use ML\IDEA\RAG\Tools\MathTool;
@@ -19,17 +22,30 @@ use ML\IDEA\RAG\VectorStore\InMemoryVectorStore;
 
 $kbText = (string) file_get_contents(__DIR__ . '/knowledge_base.txt');
 
+// Local defaults (deterministic):
+// - Tool routing: HeuristicToolRoutingModel
+// - QA LLM: LlmClientFactory::fromEnv() (defaults to Echo)
+//
+// Provider-backed routing alternatives (drop-in):
+// $router = new OpenAIToolRoutingModel((string) getenv('OPENAI_API_KEY'), (string) (getenv('OPENAI_CHAT_MODEL') ?: 'gpt-4o-mini'));
+// $router = new AzureOpenAIToolRoutingModel((string) getenv('AZURE_OPENAI_API_KEY'), (string) getenv('AZURE_OPENAI_ENDPOINT'), (string) getenv('AZURE_OPENAI_CHAT_DEPLOYMENT'));
+// $router = new OllamaToolRoutingModel((string) (getenv('OLLAMA_MODEL') ?: 'llama3.1'));
+//
+// RetrievalQAChain LLM selection:
+// Set RAG_LLM_PROVIDER=openai|azure|ollama|echo (plus relevant env vars)
+// or pass your own custom LlmClientInterface implementation.
+
 $chain = new RetrievalQAChain(
     new HashEmbedder(24),
     new InMemoryVectorStore(),
     new RecursiveTextSplitter(160, 30),
-    new EchoLlmClient(),
+    LlmClientFactory::fromEnv(),
     new LexicalOverlapReranker(),
 );
 $chain->index([new Document('kb-1', $kbText)]);
 
 $agent = new ToolRoutingAgent(
-    new HeuristicToolRoutingModel(),
+    new HeuristicToolRoutingModel(), // replace with $router from the provider-backed options above if desired
     [new RetrievalQaTool($chain), new WeatherTool(), new MathTool()]
 );
 
