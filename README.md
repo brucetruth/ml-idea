@@ -6,6 +6,8 @@
 `ml-idea` is a modern, production-oriented machine learning library for PHP focused on clean APIs,
 strict typing, and practical classification workflows.
 
+Others always look down on PHP & have proclaimed its end since 2000, well, the elephant keeps moving.
+
 ## Features
 
 - PHP 8.2+ with strict types
