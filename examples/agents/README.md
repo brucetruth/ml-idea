@@ -77,6 +77,16 @@ This is useful for “explore your data” workflows over files/notes/KB text wi
 - `10_custom_llm_client_demo.php`
   - shows a minimal custom `LlmClientInterface` implementation for full control over generation behavior
 
+## Agent identity + system features customization
+
+Both `ToolRoutingAgent` and `ToolCallingAgent` now support optional prompt customization fields:
+
+- `agentName` (agent identity)
+- `agentFeatures` (extra behavior/features in system prompt)
+- `systemPrompt` (full prompt override)
+
+See `02_tool_routing_agent_local.php` and `01_local_agent_toolbox_demo.php` for concrete usage.
+
 ## Built-in LLM clients for RetrievalQAChain
 
 You can select built-in QA LLM clients via `RAG_LLM_PROVIDER` in examples that call `LlmClientFactory::fromEnv()`:
