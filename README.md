@@ -30,9 +30,12 @@ strict typing, and practical classification workflows.
 - NLP foundation (Phase 1): fluent Text API, unicode tokenization with offsets, PII redaction, rule-based POS tagging
 - NLP Phase 2: language detection, keyword extraction (RAKE), BM25 retrieval, hashing vectorizer, similarity utilities, and NLP RAG helpers
 - NLP advanced tagging: multilingual rule-based POS, extensible language profiles, and rule-based NER
+- GEO service + ML-GEO helpers: country/state/city lookup, nearest-place search, and geo feature building
 - Managed dataset assets: registry, integrity checks, licenses metadata, and compiled indexes (trie/automaton/kd-tree)
 - RAG foundations: embedders (`OpenAI`, `AzureOpenAI`, `Ollama`), splitters, retriever, and multiple vector stores (in-memory, JSON, SQLite)
+- RAG LLM clients for QA generation: `Echo`, `OpenAI`, `Azure OpenAI`, and `Ollama` (direct or `LlmClientFactory::fromEnv()`)
 - Advanced RAG workflow: document loaders, hybrid retrieval, rerankers, citations/diagnostics, vector-index persistence, tool-calling + streaming hooks
+- AI agents + tool routing: `ToolCallingAgent`, `ToolRoutingAgent`, deterministic/local routing, and provider-backed routing (OpenAI/Azure/Ollama/custom)
 - Unified core contracts (v1.4): `fit/predict`, probabilistic, online-learning, serializable model interfaces
 - Hyperparameter lifecycle helpers: `getParams`, `setParams`, `cloneWithParams`, random-state aware models
 - PHPUnit test suite + CI workflow

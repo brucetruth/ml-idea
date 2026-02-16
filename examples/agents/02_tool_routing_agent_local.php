@@ -46,7 +46,13 @@ $chain->index([new Document('kb-1', $kbText)]);
 
 $agent = new ToolRoutingAgent(
     new HeuristicToolRoutingModel(), // replace with $router from the provider-backed options above if desired
-    [new RetrievalQaTool($chain), new WeatherTool(), new MathTool()]
+    [new RetrievalQaTool($chain), new WeatherTool(), new MathTool()],
+    maxIterations: 8,
+    agentName: 'LocalOpsAssistant',
+    agentFeatures: [
+        'Prefer tool usage for math, weather, and knowledge-base lookups.',
+        'Return concise answers with relevant tool evidence when possible.',
+    ],
 );
 
 $q1 = 'What does this library say about model persistence?';
