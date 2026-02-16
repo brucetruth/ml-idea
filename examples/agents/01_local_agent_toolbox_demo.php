@@ -93,6 +93,9 @@ $agent = new ToolCallingAgent([
     new GeoResolverTool(),
     $weatherTool,
     $freeApiTool,
+], agentName: 'ToolboxAssistant', agentFeatures: [
+    'Executes explicit tool:... protocol requests only.',
+    'Supports local knowledge-base QA, geo, weather, and free_api helpers.',
 ]);
 
 echo "Agent Demo: local knowledge + weather + geo_resolver + free_api\n\n";
