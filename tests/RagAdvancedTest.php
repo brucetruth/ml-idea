@@ -97,4 +97,18 @@ final class RagAdvancedTest extends TestCase
         $response = $agent->run('tool:rag_qa {"question":"How do I save models?","k":1}');
         self::assertNotSame('', trim($response));
     }
+
+    public function testToolCallingAgentSupportsCustomAgentPromptFields(): void
+    {
+        $agent = new ToolCallingAgent(
+            [],
+            agentName: 'LocalToolRunner',
+            agentFeatures: ['Executes only explicit tool protocol calls']
+        );
+
+        $prompt = $agent->getSystemPrompt();
+        self::assertStringContainsString('You are LocalToolRunner.', $prompt);
+        self::assertStringContainsString('Executes only explicit tool protocol calls', $prompt);
+        self::assertStringContainsString('tool:TOOL_NAME', $agent->getInvocationGuide());
+    }
 }

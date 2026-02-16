@@ -35,4 +35,26 @@ final class RagToolRoutingAgentTest extends TestCase
         self::assertCount(1, $result['tool_calls']);
         self::assertSame('math', $result['tool_calls'][0]['name']);
     }
+
+    public function testToolRoutingAgentSupportsCustomAgentPromptFields(): void
+    {
+        $model = new class () implements ToolRoutingModelInterface {
+            public function respond(array $messages, array $tools): array
+            {
+                return ['type' => 'final', 'content' => 'ok'];
+            }
+        };
+
+        $agent = new ToolRoutingAgent(
+            $model,
+            [new MathTool()],
+            maxIterations: 3,
+            agentName: 'OpsRoutingAgent',
+            agentFeatures: ['Prefer reliable tools first', 'Keep responses concise']
+        );
+
+        $prompt = $agent->getSystemPrompt();
+        self::assertStringContainsString('You are OpsRoutingAgent, a tool-using agent.', $prompt);
+        self::assertStringContainsString('Prefer reliable tools first', $prompt);
+    }
 }
