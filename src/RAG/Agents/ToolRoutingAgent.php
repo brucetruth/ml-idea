@@ -17,10 +17,45 @@ final class ToolRoutingAgent
         private readonly ToolRoutingModelInterface $model,
         array $tools,
         private readonly int $maxIterations = 8,
+        private readonly string $agentName = 'ToolRoutingAgent',
+        /** @var array<int, string> */
+        private readonly array $agentFeatures = [],
+        private readonly ?string $systemPrompt = null,
     ) {
         foreach ($tools as $tool) {
             $this->tools[$tool->name()] = $tool;
         }
+    }
+
+    public function getSystemPrompt(): string
+    {
+        if (is_string($this->systemPrompt) && trim($this->systemPrompt) !== '') {
+            return trim($this->systemPrompt);
+        }
+
+        $name = trim($this->agentName);
+        $features = array_values(array_filter(array_map(
+            static fn (mixed $f): string => trim((string) $f),
+            $this->agentFeatures
+        ), static fn (string $f): bool => $f !== ''));
+
+        if ($name === 'ToolRoutingAgent' && $features === []) {
+            return 'You are a tool-using agent. Decide whether to call a tool or answer directly.';
+        }
+
+        $lines = [
+            sprintf('You are %s, a tool-using agent.', $name !== '' ? $name : 'ToolRoutingAgent'),
+            'Decide whether to call a tool or answer directly.',
+        ];
+
+        if ($features !== []) {
+            $lines[] = 'Agent features:';
+            foreach ($features as $feature) {
+                $lines[] = '- ' . $feature;
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
@@ -29,7 +64,7 @@ final class ToolRoutingAgent
     public function chat(string $userMessage): array
     {
         $messages = [
-            ['role' => 'system', 'content' => 'You are a tool-using agent. Decide whether to call a tool or answer directly.'],
+            ['role' => 'system', 'content' => $this->getSystemPrompt()],
             ['role' => 'user', 'content' => $userMessage],
         ];
 

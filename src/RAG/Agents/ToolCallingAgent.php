@@ -12,11 +12,49 @@ final class ToolCallingAgent
     private array $tools = [];
 
     /** @param array<int, ToolInterface> $tools */
-    public function __construct(array $tools)
+    public function __construct(
+        array $tools,
+        private readonly string $agentName = 'ToolCallingAgent',
+        /** @var array<int, string> */
+        private readonly array $agentFeatures = [],
+        private readonly ?string $systemPrompt = null,
+    )
     {
         foreach ($tools as $tool) {
             $this->tools[$tool->name()] = $tool;
         }
+    }
+
+    public function getSystemPrompt(): string
+    {
+        if (is_string($this->systemPrompt) && trim($this->systemPrompt) !== '') {
+            return trim($this->systemPrompt);
+        }
+
+        $name = trim($this->agentName);
+        $features = array_values(array_filter(array_map(
+            static fn (mixed $f): string => trim((string) $f),
+            $this->agentFeatures
+        ), static fn (string $f): bool => $f !== ''));
+
+        $lines = [
+            sprintf('You are %s.', $name !== '' ? $name : 'ToolCallingAgent'),
+            'You execute explicitly requested tool calls using the protocol: tool:TOOL_NAME {"key":"value"}.',
+        ];
+
+        if ($features !== []) {
+            $lines[] = 'Agent features:';
+            foreach ($features as $feature) {
+                $lines[] = '- ' . $feature;
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    public function getInvocationGuide(): string
+    {
+        return 'No tool invocation detected. Use: tool:TOOL_NAME {"arg":"value"}';
     }
 
     /**
@@ -26,7 +64,7 @@ final class ToolCallingAgent
     public function run(string $instruction): string
     {
         if (!preg_match('/^tool:([a-zA-Z0-9_\-]+)\s*(\{.*\})?$/', trim($instruction), $m)) {
-            return 'No tool invocation detected. Use: tool:TOOL_NAME {"arg":"value"}';
+            return $this->getInvocationGuide();
         }
 
         $name = $m[1];
