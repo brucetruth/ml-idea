@@ -7,7 +7,7 @@ namespace ML\IDEA\RAG\LLM;
 final class ToolRoutingDecisionParser
 {
     /**
-     * @return array{type: string, content?: string, tool?: string, input?: array<string, mixed>}
+     * @return array<string, mixed>
      */
     public static function parse(string $raw): array
     {
@@ -21,7 +21,7 @@ final class ToolRoutingDecisionParser
         }
 
         $type = isset($decoded['type']) ? (string) $decoded['type'] : 'final';
-        if ($type !== 'tool_call' && $type !== 'final') {
+        if (!in_array($type, ['tool_call', 'tool_calls', 'final', 'clarify', 'refuse'], true)) {
             $type = 'final';
         }
 
@@ -33,6 +33,15 @@ final class ToolRoutingDecisionParser
             }
 
             return ['type' => 'tool_call', 'tool' => $tool, 'input' => $input];
+        }
+
+        if ($type === 'tool_calls') {
+            $calls = isset($decoded['tool_calls']) && is_array($decoded['tool_calls']) ? $decoded['tool_calls'] : [];
+            return ['type' => 'tool_calls', 'tool_calls' => $calls];
+        }
+
+        if ($type === 'clarify' || $type === 'refuse') {
+            return ['type' => $type, 'content' => isset($decoded['content']) ? (string) $decoded['content'] : $raw];
         }
 
         return ['type' => 'final', 'content' => isset($decoded['content']) ? (string) $decoded['content'] : $raw];

@@ -9,7 +9,11 @@ use ML\IDEA\NLP\Normalize\UnicodeNormalizer;
 
 final class GazetteerEntityRecognizer
 {
-    private AhoCorasickAutomaton $automaton;
+    private const int AHO_CORASICK_MAX_PATTERNS = 1000;
+
+    /** @var array<string, string> */
+    private array $patterns = [];
+    private ?AhoCorasickAutomaton $automaton = null;
 
     /** @param array<string, string> $gazetteer */
     public function __construct(
@@ -18,18 +22,26 @@ final class GazetteerEntityRecognizer
         private readonly bool $normalizeAccents = true,
         private readonly bool $collapseWhitespace = true,
     ) {
-        $patterns = [];
         foreach ($gazetteer as $term => $label) {
-            $patterns[$this->normalize($term)] = (string) $label;
+            $normalized = $this->normalize($term);
+            if ($normalized === '') {
+                continue;
+            }
+            $this->patterns[$normalized] = (string) $label;
         }
-        $this->automaton = AhoCorasickAutomaton::fromMap($patterns);
+
+        if (count($this->patterns) <= self::AHO_CORASICK_MAX_PATTERNS) {
+            $this->automaton = AhoCorasickAutomaton::fromMap($this->patterns);
+        }
     }
 
     /** @return array<int, Entity> */
     public function recognize(string $text): array
     {
         $norm = $this->normalize($text);
-        $matches = $this->automaton->find($norm);
+        $matches = $this->automaton !== null
+            ? $this->automaton->find($norm)
+            : $this->findWithScan($norm);
 
         $entities = [];
         foreach ($matches as $m) {
@@ -55,6 +67,37 @@ final class GazetteerEntityRecognizer
         }
 
         return $entities;
+    }
+
+    /** @return array<int, array{term:string,label:string,start:int,end:int}> */
+    private function findWithScan(string $normalizedText): array
+    {
+        if ($this->patterns === [] || $normalizedText === '') {
+            return [];
+        }
+
+        $terms = array_keys($this->patterns);
+        usort($terms, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+
+        $matches = [];
+        foreach ($terms as $term) {
+            $offset = 0;
+            $termLength = mb_strlen($term);
+            while (($pos = mb_strpos($normalizedText, $term, $offset)) !== false) {
+                $end = $pos + $termLength - 1;
+                if ($this->isBoundaryMatch($normalizedText, $pos, $end)) {
+                    $matches[] = [
+                        'term' => $term,
+                        'label' => $this->patterns[$term],
+                        'start' => $pos,
+                        'end' => $end,
+                    ];
+                }
+                $offset = $pos + 1;
+            }
+        }
+
+        return $matches;
     }
 
     private function isBoundaryMatch(string $normalizedText, int $startChar, int $endCharInclusive): bool

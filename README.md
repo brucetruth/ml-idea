@@ -37,7 +37,7 @@ Others always look down on PHP & have proclaimed its end since 2000, well, the e
 - RAG foundations: embedders (`OpenAI`, `AzureOpenAI`, `Ollama`), splitters, retriever, and multiple vector stores (in-memory, JSON, SQLite)
 - RAG LLM clients for QA generation: `Echo`, `OpenAI`, `Azure OpenAI`, and `Ollama` (direct or `LlmClientFactory::fromEnv()`)
 - Advanced RAG workflow: document loaders, hybrid retrieval, rerankers, citations/diagnostics, vector-index persistence, tool-calling + streaming hooks
-- AI agents + tool routing: `ToolCallingAgent`, `ToolRoutingAgent`, deterministic/local routing, and provider-backed routing (OpenAI/Azure/Ollama/custom)
+- AI agents + tool routing: `ToolCallingAgent`, `ToolRoutingAgent`, deterministic/local routing, and provider-backed routing (OpenAI/Azure/Anthropic/Ollama/custom)
 - Unified core contracts (v1.4): `fit/predict`, probabilistic, online-learning, serializable model interfaces
 - Hyperparameter lifecycle helpers: `getParams`, `setParams`, `cloneWithParams`, random-state aware models
 - PHPUnit test suite + CI workflow
@@ -172,16 +172,41 @@ See runnable use-case scripts in [`examples/`](examples/README.md):
 
 ## Roadmap
 
-- More algorithms (tree-based models, multiclass linear models)
-- Feature preprocessing (normalization, encoding)
-- Cross-validation utilities
-- Dataset loaders and richer benchmarking tools
-- Context and chat history handling for the Tool Routing Agent
-- Tool reliability layer for agents (timeouts, retries, fallbacks, structured errors)
-- Policy and safety guardrails (tool allow/deny rules, injection checks, PII-safe logs)
-- Improved routing quality (confidence scoring, clarification turn, top-k tool candidates)
-- Observability + evaluation harness for routing/tool accuracy regressions
-- Memory strategy beyond raw history (summaries, pruning, retrieval-based recall)
-- Cost/latency controls (model tiering, caching, token budgets)
-- Human-in-the-loop controls for risky actions and execution approvals
-- Output quality controls (schema validation, grounding/citation checks, consistency pass)
+### Priority 0 — Competitiveness Foundations
+
+- Performance + benchmarking first: reproducible benchmark suite, memory/latency tracking, and publishable baseline reports.
+- Production inference contract: versioned model bundles, input/output schema validation, safer deserialization, and deterministic fallback behavior.
+- Reproducibility workflow: run metadata capture (params, seed, metrics, artifacts) and standardized experiment summaries.
+
+### Priority 1 — Algorithm & Feature Coverage
+
+- More algorithms (tree-based models, multiclass linear models, stronger ensemble baselines).
+- Feature preprocessing (normalization, encoding, imputation, outlier-aware transforms, rare-category handling).
+- Time-series ML support beyond splitting (lag/rolling feature generators and leakage-safe pipeline patterns).
+- Cross-validation utilities expansion (task-specific helpers and richer evaluation modes).
+
+### Priority 2 — Interoperability & Ecosystem
+
+- Model interoperability bridges (portable formats/import-export adapters) for cross-runtime workflows.
+- Dataset loaders and richer benchmarking tools.
+- Documentation expansion: task-first recipes, performance tuning guides, and production deployment playbooks.
+
+### Priority 3 — RAG/Agent Production Hardening
+
+- Context and chat history handling for the Tool Routing Agent. *(v1.5: `AgentContextManager`)*
+- Tool reliability layer for agents (timeouts, retries, fallbacks, structured errors). *(v1.5: `ToolReliabilityPolicy`, `RetryableToolInterface`)*
+- Policy and safety guardrails (tool allow/deny rules, injection checks, PII-safe logs).
+- Improved routing quality (confidence scoring, clarification turn, top-k tool candidates). *(v1.5: decision `confidence` field)*
+- Observability + evaluation harness for routing/tool accuracy regressions. *(v1.5: `AgentEvalHarness`)*
+- Streaming agent runs and human-in-the-loop approval gates. *(v1.6: `chatStream()`, `resumeWithApproval()`)*
+- Session auto-persist for multi-turn agents. *(v1.6: `chatInSession()`, `AnthropicToolRoutingModel`, Ollama native tools)*
+- MCP remote tools + pluggable session stores (file default, Redis optional). *(v1.7: `McpToolProvider`, `AgentStateStoreFactory`)*
+- Multi-agent supervisor handoffs to specialist agents. *(v1.7: `AgentHandoffRegistry`, `handoff` decision)*
+- Memory strategy beyond raw history (summaries, pruning, retrieval-based recall).
+- Cost/latency controls (model tiering, caching, token budgets).
+- Human-in-the-loop controls for risky actions and execution approvals.
+- Output quality controls (schema validation, grounding/citation checks, consistency pass).
+
+### Strategic Positioning
+
+- Position `ml-idea` as: **the production PHP AI runtime** combining classical ML + NLP + RAG + tool-using agents with strict typing and testability.

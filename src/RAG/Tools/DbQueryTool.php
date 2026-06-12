@@ -6,8 +6,9 @@ namespace ML\IDEA\RAG\Tools;
 
 use ML\IDEA\Exceptions\InvalidArgumentException;
 use ML\IDEA\RAG\Contracts\ToolInterface;
+use ML\IDEA\RAG\Contracts\ToolSchemaInterface;
 
-final class DbQueryTool implements ToolInterface
+final class DbQueryTool implements ToolInterface, ToolSchemaInterface
 {
     /**
      * @param array<int, string> $allowedTables
@@ -32,6 +33,30 @@ final class DbQueryTool implements ToolInterface
     public function description(): string
     {
         return 'Executes parameterized SQL allowed table_names include ['.json_encode($this->allowedTables).'], user might misspell table names, so understand user question and match with the required tables, tables access policy is currently: '.$this->readOnly.' you are allowed to pre-run other queries to understand table structures. Input: {"sql":"SELECT ... WHERE id = :id", "params":{"id":1}}';
+    }
+
+    public function inputSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'required' => ['sql'],
+            'properties' => [
+                'sql' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 10000],
+                'params' => ['type' => 'object'],
+            ],
+        ];
+    }
+
+    public function examples(): array
+    {
+        return [
+            ['sql' => 'SELECT * FROM orders LIMIT 5', 'params' => []],
+        ];
+    }
+
+    public function riskLevel(): string
+    {
+        return $this->readOnly ? 'medium' : 'high';
     }
 
     public function invoke(array $input): string

@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace ML\IDEA\RAG\Tools;
 
 use ML\IDEA\RAG\Contracts\ToolInterface;
+use ML\IDEA\RAG\Contracts\ToolSchemaInterface;
 
-final class FreeApiGetTool implements ToolInterface
+final class FreeApiGetTool implements ToolInterface, ToolSchemaInterface
 {
     /**
      * @param array<int, string> $allowedPrefixes
@@ -23,6 +24,29 @@ final class FreeApiGetTool implements ToolInterface
     public function description(): string
     {
         return 'Performs GET requests against approved free API endpoints.';
+    }
+
+    public function inputSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'required' => ['url'],
+            'properties' => [
+                'url' => ['type' => 'string', 'minLength' => 8, 'maxLength' => 2048],
+            ],
+        ];
+    }
+
+    public function examples(): array
+    {
+        return [
+            ['url' => 'https://jsonplaceholder.typicode.com/todos/1'],
+        ];
+    }
+
+    public function riskLevel(): string
+    {
+        return $this->allowedPrefixes === [] ? 'high' : 'medium';
     }
 
     public function invoke(array $input): string

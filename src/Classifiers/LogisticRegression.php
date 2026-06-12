@@ -16,15 +16,16 @@ use ML\IDEA\Support\Assert;
 
 final class LogisticRegression extends AbstractClassifier implements PersistableModelInterface, SerializableModelInterface, ProbabilisticClassifierInterface, OnlineLearnerInterface
 {
-    /** @var array<int, float> */
-    private array $weights = [];
+    /** @var array<int, array<int, float>> */
+    private array $weightsByClass = [];
 
-    private float $bias = 0.0;
+    /** @var array<int, float> */
+    private array $biasByClass = [];
     private int $featureCount = 0;
     private bool $trained = false;
 
-    private int|float|string|bool $negativeClass = 0;
-    private int|float|string|bool $positiveClass = 1;
+    /** @var array<int, int|float|string|bool> */
+    private array $classes = [];
 
     public function __construct(
         private readonly float $learningRate = 0.1,
@@ -48,41 +49,59 @@ final class LogisticRegression extends AbstractClassifier implements Persistable
         Assert::matchingSampleLabelCount($samples, $labels);
 
         $classes = array_values(array_unique($labels, SORT_REGULAR));
-        if (count($classes) !== 2) {
-            throw new InvalidArgumentException('LogisticRegression currently supports binary classification only.');
+        if (count($classes) < 2) {
+            throw new InvalidArgumentException('LogisticRegression requires at least 2 distinct classes.');
         }
 
-        $this->negativeClass = $classes[0];
-        $this->positiveClass = $classes[1];
+        $this->classes = $classes;
 
         $this->featureCount = count($samples[0]);
-        $this->weights = array_fill(0, $this->featureCount, 0.0);
-        $this->bias = 0.0;
+        $this->weightsByClass = [];
+        $this->biasByClass = [];
+
+        foreach ($this->classes as $classIndex => $classValue) {
+            $this->weightsByClass[$classIndex] = array_fill(0, $this->featureCount, 0.0);
+            $this->biasByClass[$classIndex] = 0.0;
+        }
 
         $sampleCount = count($samples);
+        $classCount = count($this->classes);
 
         for ($iter = 0; $iter < $this->iterations; $iter++) {
-            $gradientW = array_fill(0, $this->featureCount, 0.0);
-            $gradientB = 0.0;
+            $gradientWByClass = [];
+            $gradientBByClass = array_fill(0, $classCount, 0.0);
+            for ($k = 0; $k < $classCount; $k++) {
+                $gradientWByClass[$k] = array_fill(0, $this->featureCount, 0.0);
+            }
 
             foreach ($samples as $i => $sample) {
-                $y = $labels[$i] === $this->positiveClass ? 1.0 : 0.0;
-                $prediction = LinearAlgebra::sigmoid(LinearAlgebra::dot($sample, $this->weights) + $this->bias);
-                $error = $prediction - $y;
-
-                foreach ($sample as $j => $value) {
-                    $gradientW[$j] += $error * (float) $value;
+                $scores = [];
+                for ($k = 0; $k < $classCount; $k++) {
+                    $scores[$k] = LinearAlgebra::dot($sample, $this->weightsByClass[$k]) + $this->biasByClass[$k];
                 }
 
-                $gradientB += $error;
+                $probabilities = $this->softmax($scores);
+
+                for ($k = 0; $k < $classCount; $k++) {
+                    $y = $labels[$i] === $this->classes[$k] ? 1.0 : 0.0;
+                    $error = $probabilities[$k] - $y;
+
+                    foreach ($sample as $j => $value) {
+                        $gradientWByClass[$k][$j] += $error * (float) $value;
+                    }
+
+                    $gradientBByClass[$k] += $error;
+                }
             }
 
-            foreach ($this->weights as $j => $weight) {
-                $gradient = ($gradientW[$j] / $sampleCount) + ($this->l2Penalty * $weight);
-                $this->weights[$j] -= $this->learningRate * $gradient;
-            }
+            for ($k = 0; $k < $classCount; $k++) {
+                foreach ($this->weightsByClass[$k] as $j => $weight) {
+                    $gradient = ($gradientWByClass[$k][$j] / $sampleCount) + ($this->l2Penalty * $weight);
+                    $this->weightsByClass[$k][$j] -= $this->learningRate * $gradient;
+                }
 
-            $this->bias -= $this->learningRate * ($gradientB / $sampleCount);
+                $this->biasByClass[$k] -= $this->learningRate * ($gradientBByClass[$k] / $sampleCount);
+            }
         }
 
         $this->trained = true;
@@ -96,16 +115,44 @@ final class LogisticRegression extends AbstractClassifier implements Persistable
 
         Assert::sampleMatchesDimension($sample, $this->featureCount);
 
-        return $this->predictProbability($sample) >= 0.5 ? $this->positiveClass : $this->negativeClass;
+        $probabilities = $this->predictProba($sample);
+        $bestClass = null;
+        $bestProbability = -INF;
+
+        foreach ($probabilities as $class => $probability) {
+            if ($probability > $bestProbability) {
+                $bestProbability = $probability;
+                $bestClass = $class;
+            }
+        }
+
+        if ($bestClass === null) {
+            throw new ModelNotTrainedException('LogisticRegression has not been trained yet.');
+        }
+
+        return $bestClass;
     }
 
     public function predictProba(array $sample): array
     {
-        $p1 = $this->predictProbability($sample);
-        return [
-            $this->negativeClass => 1.0 - $p1,
-            $this->positiveClass => $p1,
-        ];
+        if (!$this->trained) {
+            throw new ModelNotTrainedException('LogisticRegression has not been trained yet.');
+        }
+
+        Assert::sampleMatchesDimension($sample, $this->featureCount);
+
+        $scores = [];
+        foreach ($this->classes as $k => $_class) {
+            $scores[$k] = LinearAlgebra::dot($sample, $this->weightsByClass[$k]) + $this->biasByClass[$k];
+        }
+
+        $indexedProbabilities = $this->softmax($scores);
+        $result = [];
+        foreach ($this->classes as $k => $classValue) {
+            $result[$classValue] = $indexedProbabilities[$k];
+        }
+
+        return $result;
     }
 
     public function predictProbaBatch(array $samples): array
@@ -123,24 +170,23 @@ final class LogisticRegression extends AbstractClassifier implements Persistable
      */
     public function predictProbability(array $sample): float
     {
-        if (!$this->trained) {
-            throw new ModelNotTrainedException('LogisticRegression has not been trained yet.');
+        $probabilities = $this->predictProba($sample);
+        if (count($this->classes) !== 2) {
+            throw new InvalidArgumentException('predictProbability is only available for binary LogisticRegression models. Use predictProba for multiclass models.');
         }
 
-        Assert::sampleMatchesDimension($sample, $this->featureCount);
-
-        return LinearAlgebra::sigmoid(LinearAlgebra::dot($sample, $this->weights) + $this->bias);
+        $positiveClass = $this->classes[1];
+        return (float) ($probabilities[$positiveClass] ?? 0.0);
     }
 
     public function toArray(): array
     {
         return [
-            'weights' => $this->weights,
-            'bias' => $this->bias,
+            'weightsByClass' => $this->weightsByClass,
+            'biasByClass' => $this->biasByClass,
             'featureCount' => $this->featureCount,
             'trained' => $this->trained,
-            'negativeClass' => $this->negativeClass,
-            'positiveClass' => $this->positiveClass,
+            'classes' => $this->classes,
             'learningRate' => $this->learningRate,
             'iterations' => $this->iterations,
             'l2Penalty' => $this->l2Penalty,
@@ -155,14 +201,63 @@ final class LogisticRegression extends AbstractClassifier implements Persistable
             (float) ($data['l2Penalty'] ?? 0.0),
         );
 
-        $model->weights = array_map(static fn ($value): float => (float) $value, $data['weights'] ?? []);
-        $model->bias = (float) ($data['bias'] ?? 0.0);
+        $weightsByClass = $data['weightsByClass'] ?? null;
+        $biasByClass = $data['biasByClass'] ?? null;
+
+        if (is_array($weightsByClass) && is_array($biasByClass)) {
+            $model->weightsByClass = [];
+            foreach ($weightsByClass as $classIndex => $weights) {
+                $model->weightsByClass[(int) $classIndex] = array_map(static fn ($value): float => (float) $value, is_array($weights) ? $weights : []);
+            }
+            $model->biasByClass = array_map(static fn ($value): float => (float) $value, $biasByClass);
+            $model->classes = is_array($data['classes'] ?? null) ? array_values($data['classes']) : [];
+        } else {
+            // Backward compatibility with binary-only serialized payloads
+            $legacyWeights = array_map(static fn ($value): float => (float) $value, $data['weights'] ?? []);
+            $legacyBias = (float) ($data['bias'] ?? 0.0);
+            $negativeClass = $data['negativeClass'] ?? 0;
+            $positiveClass = $data['positiveClass'] ?? 1;
+
+            $model->classes = [$negativeClass, $positiveClass];
+            $model->weightsByClass = [
+                0 => array_fill(0, count($legacyWeights), 0.0),
+                1 => $legacyWeights,
+            ];
+            $model->biasByClass = [0 => 0.0, 1 => $legacyBias];
+        }
+
         $model->featureCount = (int) ($data['featureCount'] ?? 0);
         $model->trained = (bool) ($data['trained'] ?? false);
-        $model->negativeClass = $data['negativeClass'] ?? 0;
-        $model->positiveClass = $data['positiveClass'] ?? 1;
 
         return $model;
+    }
+
+    /**
+     * @param array<int, float> $scores
+     * @return array<int, float>
+     */
+    private function softmax(array $scores): array
+    {
+        $maxScore = max($scores);
+        $expScores = [];
+        $sum = 0.0;
+
+        foreach ($scores as $k => $score) {
+            $value = exp($score - $maxScore);
+            $expScores[$k] = $value;
+            $sum += $value;
+        }
+
+        if ($sum <= 0.0) {
+            $count = count($scores);
+            return array_fill(0, $count, 1.0 / max(1, $count));
+        }
+
+        foreach ($expScores as $k => $value) {
+            $expScores[$k] = $value / $sum;
+        }
+
+        return $expScores;
     }
 
     public function partialFit(array $samples, array $targets): void

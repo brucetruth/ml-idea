@@ -8,8 +8,8 @@ interface ToolRoutingModelInterface
 {
     /**
      * @param array<int, array{role: string, content: string}> $messages
-     * @param array<int, array{name: string, description: string}> $tools
-     * @return array{type: string, content?: string, tool?: string, input?: array<string, mixed>}
+     * @param array<int, array<string, mixed>> $tools
+     * @return array<string, mixed>
      */
     public function respond(array $messages, array $tools): array;
 }

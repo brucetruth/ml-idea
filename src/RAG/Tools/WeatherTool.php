@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace ML\IDEA\RAG\Tools;
 
 use ML\IDEA\RAG\Contracts\ToolInterface;
+use ML\IDEA\RAG\Contracts\ToolSchemaInterface;
 
-final class WeatherTool implements ToolInterface
+final class WeatherTool implements ToolInterface, ToolSchemaInterface
 {
     public function __construct(private readonly string $baseUrl = 'https://api.open-meteo.com/v1/forecast')
     {
@@ -20,6 +21,30 @@ final class WeatherTool implements ToolInterface
     public function description(): string
     {
         return 'Fetches current weather from Open-Meteo using latitude/longitude.';
+    }
+
+    public function inputSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'required' => ['lat', 'lon'],
+            'properties' => [
+                'lat' => ['type' => 'number', 'minimum' => -90, 'maximum' => 90],
+                'lon' => ['type' => 'number', 'minimum' => -180, 'maximum' => 180],
+            ],
+        ];
+    }
+
+    public function examples(): array
+    {
+        return [
+            ['lat' => -15.3875, 'lon' => 28.3228],
+        ];
+    }
+
+    public function riskLevel(): string
+    {
+        return 'medium';
     }
 
     public function invoke(array $input): string

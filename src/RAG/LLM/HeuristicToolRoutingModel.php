@@ -31,27 +31,40 @@ final class HeuristicToolRoutingModel implements ToolRoutingModelInterface
             return ['type' => 'final', 'content' => 'Tool result: ' . $lastToolOutput];
         }
 
+        $multiCalls = [];
+
         if ($this->hasTool($tools, 'math') && preg_match('/[0-9].*[\+\-\*\/\^]|sin\(|cos\(|tan\(|sqrt\(/', $lastUser) === 1) {
-            return ['type' => 'tool_call', 'tool' => 'math', 'input' => ['expression' => $this->extractExpression($lastUser)]];
+            $multiCalls[] = ['tool' => 'math', 'input' => ['expression' => $this->extractExpression($lastUser)]];
         }
 
         if ($this->hasTool($tools, 'weather') && (str_contains($lastUser, 'weather') || str_contains($lastUser, 'temperature'))) {
-            return ['type' => 'tool_call', 'tool' => 'weather', 'input' => ['lat' => -15.3875, 'lon' => 28.3228]];
+            $coords = $this->extractCoordinates($lastUser);
+            if ($coords === null) {
+                return ['type' => 'clarify', 'content' => 'Which latitude and longitude should I use for the weather lookup?'];
+            }
+            $multiCalls[] = ['tool' => 'weather', 'input' => $coords];
         }
 
         if ($this->hasTool($tools, 'db_query') && (str_contains($lastUser, 'sql') || str_contains($lastUser, 'database') || str_contains($lastUser, 'db ') || str_contains($lastUser, 'orders') || str_contains($lastUser, 'customers'))) {
-            return [
-                'type' => 'tool_call',
+            $multiCalls[] = [
                 'tool' => 'db_query',
                 'input' => [
-                    'sql' => 'SELECT * FROM orders LIMIT 5',
+                    'sql' => $this->inferSql($lastUser),
                     'params' => [],
                 ],
             ];
         }
 
-        if ($this->hasTool($tools, 'rag_qa')) {
-            return ['type' => 'tool_call', 'tool' => 'rag_qa', 'input' => ['question' => $lastUser, 'k' => 3]];
+        if ($this->hasTool($tools, 'rag_qa') && $this->looksLikeKnowledgeQuestion($lastUser)) {
+            $multiCalls[] = ['tool' => 'rag_qa', 'input' => ['question' => $lastUser, 'k' => 3]];
+        }
+
+        if (count($multiCalls) > 1) {
+            return ['type' => 'tool_calls', 'tool_calls' => $multiCalls];
+        }
+
+        if (count($multiCalls) === 1) {
+            return ['type' => 'tool_call', 'tool' => $multiCalls[0]['tool'], 'input' => $multiCalls[0]['input']];
         }
 
         return ['type' => 'final', 'content' => 'No suitable tool found.'];
@@ -75,5 +88,40 @@ final class HeuristicToolRoutingModel implements ToolRoutingModelInterface
         }
 
         return $text;
+    }
+
+    /** @return array{lat: float, lon: float}|null */
+    private function extractCoordinates(string $text): ?array
+    {
+        if (preg_match('/lat(?:itude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?).*lon(?:gitude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)/i', $text, $m) === 1) {
+            return ['lat' => (float) $m[1], 'lon' => (float) $m[2]];
+        }
+
+        if (preg_match('/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/', $text, $m) === 1) {
+            return ['lat' => (float) $m[1], 'lon' => (float) $m[2]];
+        }
+
+        return null;
+    }
+
+    private function inferSql(string $text): string
+    {
+        if (str_contains($text, 'customers') && !str_contains($text, 'orders')) {
+            return 'SELECT * FROM customers LIMIT 5';
+        }
+
+        return 'SELECT * FROM orders LIMIT 5';
+    }
+
+    private function looksLikeKnowledgeQuestion(string $text): bool
+    {
+        return str_contains($text, '?')
+            || str_contains($text, 'summarize')
+            || str_contains($text, 'explain')
+            || str_contains($text, 'what')
+            || str_contains($text, 'how')
+            || str_contains($text, 'why')
+            || str_contains($text, 'kb')
+            || str_contains($text, 'knowledge');
     }
 }

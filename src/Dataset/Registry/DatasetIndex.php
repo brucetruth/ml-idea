@@ -7,6 +7,7 @@ namespace ML\IDEA\Dataset\Registry;
 use ML\IDEA\Dataset\Index\AhoCorasickAutomaton;
 use ML\IDEA\Dataset\Index\KdTree2D;
 use ML\IDEA\Dataset\Index\PrefixTrie;
+use ML\IDEA\Dataset\Services\GeoChunkedIndexBuilder;
 use ML\IDEA\Dataset\Services\GeoDatasetService;
 
 final class DatasetIndex
@@ -31,42 +32,10 @@ final class DatasetIndex
             }
         }
 
-        $geo = new GeoDatasetService($this->datasetBasePath === null ? null : $this->datasetBasePath . '/geo');
-
-        $map = [];
-        foreach ($geo->countriesWithStates() as $country) {
-            if (!is_array($country)) {
-                continue;
-            }
-            $name = mb_strtolower((string) ($country['name'] ?? ''));
-            if ($name !== '') {
-                $map[$name] = 'COUNTRY';
-            }
-            foreach (($country['states'] ?? []) as $state) {
-                if (!is_array($state)) {
-                    continue;
-                }
-                $sn = mb_strtolower((string) ($state['name'] ?? ''));
-                if ($sn !== '') {
-                    $map[$sn] = 'STATE';
-                }
-            }
-        }
-
-        $count = 0;
-        foreach ($geo->cities() as $city) {
-            if (!is_array($city)) {
-                continue;
-            }
-            $cn = mb_strtolower((string) ($city['name'] ?? ''));
-            if ($cn !== '' && !isset($map[$cn])) {
-                $map[$cn] = 'CITY';
-            }
-            $count++;
-            if ($count >= $maxCities) {
-                break;
-            }
-        }
+        $map = (new GeoChunkedIndexBuilder(
+            $this->geoBasePath(),
+            $this->cache,
+        ))->geoGazetteerMap($maxCities);
 
         $this->cache->set($key, $map);
         return $map;
@@ -94,7 +63,7 @@ final class DatasetIndex
             $geo = new GeoDatasetService($this->datasetBasePath === null ? null : $this->datasetBasePath . '/geo');
             $points = [];
             $count = 0;
-            foreach ($geo->cities() as $city) {
+            foreach ($geo->streamCities() as $city) {
                 if (!is_array($city)) {
                     continue;
                 }
@@ -113,5 +82,10 @@ final class DatasetIndex
 
         /** @var array<int, array{x:float,y:float,payload:array<string,mixed>}> $points */
         return new KdTree2D($points);
+    }
+
+    private function geoBasePath(): ?string
+    {
+        return $this->datasetBasePath === null ? null : $this->datasetBasePath . '/geo';
     }
 }

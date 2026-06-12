@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace ML\IDEA\Dataset\Services;
 
 use ML\IDEA\Dataset\Loaders\JsonDatasetLoader;
+use ML\IDEA\Exceptions\InvalidArgumentException;
 
 final class GeoDatasetService
 {
+    private const int FULL_CITY_LOAD_MAX_BYTES = 4_000_000;
     /** @var array<int, array<string, mixed>>|null */
     private ?array $countries = null;
     /** @var array<int, array<string, mixed>>|null */
@@ -50,8 +52,31 @@ final class GeoDatasetService
             return $this->cities;
         }
 
-        $path = $this->basePath ?? dirname(__DIR__, 2) . '/Dataset/geo';
-        $this->cities = (new JsonDatasetLoader())->load($path . '/cities.json');
+        $path = $this->geoFilePath('cities.json');
+        if (is_file($path) && filesize($path) > self::FULL_CITY_LOAD_MAX_BYTES) {
+            throw new InvalidArgumentException(
+                'The cities dataset is too large to materialize fully in memory. Use streamCities() instead.'
+            );
+        }
+
+        $this->cities = (new JsonDatasetLoader())->load($path);
         return $this->cities;
+    }
+
+    /** @return \Generator<int, array<string, mixed>> */
+    public function streamCities(): \Generator
+    {
+        yield from (new GeoChunkedIndexBuilder($this->geoBasePath()))
+            ->streamObjects($this->geoFilePath('cities.json'));
+    }
+
+    private function geoBasePath(): string
+    {
+        return $this->basePath ?? dirname(__DIR__, 2) . '/Dataset/geo';
+    }
+
+    private function geoFilePath(string $file): string
+    {
+        return rtrim($this->geoBasePath(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $file;
     }
 }

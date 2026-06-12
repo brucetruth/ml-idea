@@ -87,7 +87,7 @@ final class GeoService
         $stateNeedle = $state === null ? null : mb_strtolower(trim($state));
 
         $out = [];
-        foreach ($this->dataset->cities() as $row) {
+        foreach ($this->dataset->streamCities() as $row) {
             if (!is_array($row)) {
                 continue;
             }
@@ -149,7 +149,7 @@ final class GeoService
             }
         }
 
-        foreach ($this->dataset->cities() as $row) {
+        foreach ($this->dataset->streamCities() as $row) {
             if (!is_array($row)) {
                 continue;
             }
@@ -264,7 +264,7 @@ final class GeoService
             }
         }
 
-        foreach ($this->dataset->cities() as $city) {
+        foreach ($this->dataset->streamCities() as $city) {
             if (!is_array($city)) {
                 continue;
             }
@@ -312,7 +312,7 @@ final class GeoService
         }
 
         $count = 0;
-        foreach ($this->dataset->cities() as $city) {
+        foreach ($this->dataset->streamCities() as $city) {
             if (!is_array($city)) {
                 continue;
             }
@@ -350,7 +350,8 @@ final class GeoService
         }
 
         $points = [];
-        foreach ($this->dataset->cities() as $city) {
+        $count = 0;
+        foreach ($this->dataset->streamCities() as $city) {
             if (!is_array($city)) {
                 continue;
             }
@@ -359,6 +360,10 @@ final class GeoService
                 'y' => (float) ($city['longitude'] ?? 0.0),
                 'payload' => $city,
             ];
+            $count++;
+            if ($count >= 20000) {
+                break;
+            }
         }
 
         /** @var array<int, array{x:float,y:float,payload:array<string,mixed>}> $points */
@@ -408,7 +413,7 @@ final class GeoService
                 $sumLat = 0.0;
                 $sumLon = 0.0;
                 $n = 0;
-                foreach ($this->dataset->cities() as $city) {
+                foreach ($this->dataset->streamCities() as $city) {
                     if (!is_array($city) || strtoupper((string) ($city['country_code'] ?? '')) !== $iso2) {
                         continue;
                     }
@@ -446,7 +451,7 @@ final class GeoService
         }
 
         $boxes = [];
-        foreach ($this->dataset->cities() as $city) {
+        foreach ($this->dataset->streamCities() as $city) {
             if (!is_array($city)) {
                 continue;
             }
