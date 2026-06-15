@@ -24,17 +24,21 @@ Others always look down on PHP & have proclaimed its end since 2000, well, the e
 - Workflow tools (`PipelineClassifier`, `KFold` cross-validation splits)
 - Extra splitters: `StratifiedKFold`, `TimeSeriesSplit`
 - Cross-validation helpers: `CrossValidation::crossValScore*`, `CrossValidation::crossValPredict*`
-- Probability calibration + threshold optimization: `CalibratedClassifierCV`, `ThresholdTuner`
+- Probability calibration + threshold optimization: `CalibratedClassifierCV` (CV + `cv='prefit'`), `ThresholdTuner`, isotonic regression
 - Regression support (`LinearRegression`, `RegressionMetrics`)
-- Advanced modules: `PCA`, `MiniBatchKMeans`, `TfidfVectorizer`
-- Vision module foundations: generic image feature extraction + color palette analysis + skin-tone risk heuristics
-- Vision authenticity heuristic: AI-generation risk scoring from metadata and statistical image signals
+- Advanced modules: `PCA`, `KMeans`, `MiniBatchKMeans`, `DBSCAN`, sparse `TfidfVectorizer`
+- Tree ensembles: `RandomForestClassifier/Regressor`, `GradientBoostingClassifier/Regressor`, `LinearSVC`, `DecisionTree`
+- Model selection: stratified `GridSearchClassifier`, `RandomizedSearchClassifier` (accuracy, F1, ROC-AUC, PR-AUC)
+- Pipeline persistence: `PipelineSerializer`, `TabularPipelineClassifier` (OneHot + scalers + estimator)
+- Vision module: DCT/noise/patch forensics, `ForensicsVisionEmbedder`, `OllamaVisionEmbedder`, `VisionIndexer`, `VisionEval` (ROC-AUC), trainable `AuthenticityClassifier`, neural hooks
+- Vision heuristics: color palette analysis, skin-tone risk, AI-generation authenticity scoring
 - NLP foundation (Phase 1): fluent Text API, unicode tokenization with offsets, PII redaction, rule-based POS tagging
 - NLP Phase 2: language detection, keyword extraction (RAKE), BM25 retrieval, hashing vectorizer, similarity utilities, and NLP RAG helpers
-- NLP advanced tagging: multilingual rule-based POS, extensible language profiles, and rule-based NER
+- NLP advanced tagging: multilingual rule-based POS, extensible language profiles, rule-based NER, spaCy-style `Nlp::load()` API (104 languages)
+- NLP neural backend hooks: `CallableNlpBackend`, `OllamaNlpBackend`, `HuggingFaceInferenceBackend`
 - GEO service + ML-GEO helpers: country/state/city lookup, nearest-place search, and geo feature building
 - Managed dataset assets: registry, integrity checks, licenses metadata, and compiled indexes (trie/automaton/kd-tree)
-- RAG foundations: embedders (`OpenAI`, `AzureOpenAI`, `Ollama`), splitters, retriever, and multiple vector stores (in-memory, JSON, SQLite)
+- RAG foundations: embedders (`EmbedderFactory::fromEnv`, `OpenAI`, `AzureOpenAI`, `Ollama`, `HuggingFaceEmbedder`, `TeiEmbedder`, `HashEmbedder`), `VisionPathEmbedder`, splitters, retriever, vector stores
 - RAG LLM clients for QA generation: `Echo`, `OpenAI`, `Azure OpenAI`, and `Ollama` (direct or `LlmClientFactory::fromEnv()`)
 - Advanced RAG workflow: document loaders, hybrid retrieval, rerankers, citations/diagnostics, vector-index persistence, tool-calling + streaming hooks
 - AI agents + tool routing: `ToolCallingAgent`, `ToolRoutingAgent`, deterministic/local routing, and provider-backed routing (OpenAI/Azure/Anthropic/Ollama/custom)
@@ -169,6 +173,14 @@ See runnable use-case scripts in [`examples/`](examples/README.md):
 - NLP multilingual POS + NER example (`examples/18_nlp_multilingual_ner.php`)
 - NLP extensibility example (`examples/19_nlp_extensibility_custom_profiles.php`)
 - NLP trainable POS/NER pipeline example (`examples/20_nlp_trainable_pos_ner.php`)
+- ML competitiveness demo (`examples/33_ml_competitiveness.php`) — trees, pipelines, search, calibration
+- Tier-2 ML/RAG demo (`examples/34_tier2_ml_rag.php`) — sparse TF-IDF, KMeans/DBSCAN, multiclass calibration, ANN
+- Vision ML classifier demo (`examples/35_vision_ml_classifier.php`) — forensics features + trainable authenticity model
+- Vision eval demo (`examples/36_vision_eval_demo.php`) — ROC-AUC/PR-AUC on labeled fixtures
+- Vision/RAG frontier hooks (`examples/37_vision_rag_frontier_hooks.php`) — neural backends, HF embedder, vec0 factory
+- Image similarity RAG (`examples/38_image_similarity_rag.php`) — forensics embeddings + ANN search
+- Production embedder/index (`examples/39_production_embedder_and_vision_index.php`) — `EmbedderFactory`, `VisionIndexer`, directory scan
+- Image similarity RAG (`examples/38_image_similarity_rag.php`) — forensics embeddings + ANN search
 
 ## Roadmap
 
@@ -202,6 +214,9 @@ See runnable use-case scripts in [`examples/`](examples/README.md):
 - Session auto-persist for multi-turn agents. *(v1.6: `chatInSession()`, `AnthropicToolRoutingModel`, Ollama native tools)*
 - MCP remote tools + pluggable session stores (file default, Redis optional). *(v1.7: `McpToolProvider`, `AgentStateStoreFactory`)*
 - Multi-agent supervisor handoffs to specialist agents. *(v1.7: `AgentHandoffRegistry`, `handoff` decision)*
+- OpenTelemetry-style tracing for agent runs. *(v1.7: `AgentTracerInterface`, `OpenTelemetryAgentTracer`)*
+- Laravel bridge package with config, facade, and eval Artisan command. *(v1.7: `brucetruth/ml-idea-laravel`)*
+- AI admin example: standalone demos in `examples/ai-admin/`, Laravel copy-paste demo in `packages/laravel/examples/ai-admin/`
 - Memory strategy beyond raw history (summaries, pruning, retrieval-based recall).
 - Cost/latency controls (model tiering, caching, token budgets).
 - Human-in-the-loop controls for risky actions and execution approvals.
