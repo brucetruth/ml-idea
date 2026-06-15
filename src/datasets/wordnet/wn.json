@@ -1,0 +1,26 @@
+{
+  "words": {
+    "dog": ["dog.n.01"],
+    "cat": ["cat.n.01"],
+    "happy": ["happy.a.01"],
+    "sad": ["sad.a.01"]
+  },
+  "synsets": {
+    "dog.n.01": {
+      "definition": "a domesticated carnivorous mammal",
+      "synonyms": ["dog", "domestic_dog", "canine"]
+    },
+    "cat.n.01": {
+      "definition": "a small domesticated feline",
+      "synonyms": ["cat", "domestic_cat", "feline"]
+    },
+    "happy.a.01": {
+      "definition": "enjoying or showing pleasure",
+      "synonyms": ["happy", "joyful", "pleased"]
+    },
+    "sad.a.01": {
+      "definition": "experiencing sorrow",
+      "synonyms": ["sad", "unhappy", "sorrowful"]
+    }
+  }
+}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ML\IDEA\Dataset\Services;
 
 use ML\IDEA\Dataset\Registry\DatasetCache;
+use ML\IDEA\Dataset\Registry\DatasetPaths;
 use ML\IDEA\Exceptions\InvalidArgumentException;
 use ML\IDEA\NLP\Normalize\UnicodeNormalizer;
 
@@ -203,7 +204,7 @@ final class GeoChunkedIndexBuilder
 
     private function geoPath(string $file): string
     {
-        $base = $this->geoBasePath ?? dirname(__DIR__, 2) . '/Dataset/geo';
+        $base = $this->geoBasePath ?? DatasetPaths::resolve('geo');
         return rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $file;
     }
 

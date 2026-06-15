@@ -13,7 +13,7 @@ final class DatasetRegistry
     /** @return array<int, array{name:string, version:string, language:string, schema:string, path:string}> */
     public function listDatasets(): array
     {
-        $base = $this->basePath ?? dirname(__DIR__, 2) . '/Dataset';
+        $base = $this->basePath ?? DatasetPaths::base();
         return [
             ['name' => 'wordnet', 'version' => '1.0', 'language' => 'en', 'schema' => 'wordnet-json', 'path' => $base . '/wordnet/wn.json'],
             ['name' => 'sentiment', 'version' => '1.0', 'language' => 'en', 'schema' => 'sentiment-json', 'path' => $base . '/sentiment/sentiment_dataset.json'],

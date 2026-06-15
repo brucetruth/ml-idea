@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Zambia",
+    "iso2": "ZM",
+    "iso3": "ZMB",
+    "states": [{"name": "Lusaka Province"}, {"name": "Copperbelt Province"}]
+  },
+  {
+    "name": "United States",
+    "iso2": "US",
+    "iso3": "USA",
+    "states": [{"name": "California"}, {"name": "Texas"}]
+  }
+]

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ML\IDEA\Dataset\Services;
 
 use ML\IDEA\Dataset\Loaders\CsvDatasetLoader;
+use ML\IDEA\Dataset\Registry\DatasetPaths;
 
 final class DictionaryDatasetService
 {
@@ -24,7 +25,7 @@ final class DictionaryDatasetService
             return $this->englishToBemba;
         }
 
-        $path = $this->basePath ?? dirname(__DIR__, 2) . '/Dataset/dictionary';
+        $path = $this->basePath ?? DatasetPaths::resolve('dictionary');
         $rows = (new CsvDatasetLoader())->loadAssoc($path . '/bemba/english_to_bemba.csv');
 
         $map = [];
@@ -98,13 +99,102 @@ final class DictionaryDatasetService
     }
 
     /** @return array<string, string> */
+    public function englishToBembaSupplementalPhrases(): array
+    {
+        $out = [];
+        foreach ($this->supplementalPhrasePaths() as $path) {
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $rows = (new CsvDatasetLoader())->loadAssoc($path);
+            foreach ($rows as $row) {
+                $en = $this->normalizeKey((string) ($row['English'] ?? $row['english'] ?? ''));
+                $bem = trim((string) ($row['Bemba'] ?? $row['bemba'] ?? ''));
+                if ($en === '' || $bem === '' || !str_contains($en, ' ')) {
+                    continue;
+                }
+                $out[$en] = $bem;
+            }
+        }
+
+        return $out;
+    }
+
+    /** @return array<string, string> */
+    public function bembaToEnglishWordMap(): array
+    {
+        $out = [];
+        foreach ($this->englishToBemba() as $en => $translations) {
+            if (str_contains($en, ' ')) {
+                continue;
+            }
+
+            foreach ($translations as $bem) {
+                $key = $this->normalizeKey($bem);
+                if ($key === '' || isset($out[$key])) {
+                    continue;
+                }
+                $out[$key] = $this->normalizeKey($en);
+            }
+        }
+
+        return $out;
+    }
+
+    /** @return array<string, string> */
+    public function bembaToEnglishPhraseMap(int $minN = 2, int $maxN = 5): array
+    {
+        $minN = max(2, $minN);
+        $maxN = max($minN, $maxN);
+        $out = [];
+
+        $sources = array_merge(
+            $this->englishToBembaPhraseMap($minN, $maxN),
+            $this->englishToBembaSupplementalPhrases(),
+        );
+
+        foreach ($sources as $en => $bem) {
+            $enNorm = $this->normalizeKey($en);
+            $bemNorm = $this->normalizeKey($bem);
+            if ($enNorm === '' || $bemNorm === '' || !str_contains($bemNorm, ' ')) {
+                continue;
+            }
+
+            $n = count(explode(' ', $bemNorm));
+            if ($n < $minN || $n > $maxN) {
+                continue;
+            }
+
+            $out[$bemNorm] = $enNorm;
+        }
+
+        return $out;
+    }
+
+    /** @return array<int, string> */
+    private function supplementalPhrasePaths(): array
+    {
+        if ($this->basePath !== null) {
+            return [$this->basePath . '/bemba/phrases.csv'];
+        }
+
+        $relative = 'dictionary/bemba/phrases.csv';
+
+        return array_values(array_unique([
+            DatasetPaths::resolve($relative),
+            DatasetPaths::seed($relative),
+        ]));
+    }
+
+    /** @return array<string, string> */
     public function englishDefinitions(): array
     {
         if ($this->englishDefinitions !== null) {
             return $this->englishDefinitions;
         }
 
-        $path = $this->basePath ?? dirname(__DIR__, 2) . '/Dataset/dictionary';
+        $path = $this->basePath ?? DatasetPaths::resolve('dictionary');
         $rows = (new CsvDatasetLoader())->loadAssoc($path . '/en/en.csv');
 
         $map = [];

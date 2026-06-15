@@ -11,7 +11,7 @@ use ML\IDEA\NLP\Ner\RuleBasedNerTagger;
 
 echo "Example 21 - GEO Service + GEO-aware NER\n";
 
-// Real bundled dataset (default): src/Dataset/geo
+// Real bundled dataset (default): src/datasets/geo
 // If your environment has low memory, increase memory limit first.
 ini_set('memory_limit', '768M');
 $geoCacheDir = __DIR__ . '/artifacts/geo_index_cache';

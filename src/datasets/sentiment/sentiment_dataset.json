@@ -1,0 +1,8 @@
+[
+  {"id": 1, "text": "amazing brilliant delightful product", "label": "positive"},
+  {"id": 2, "text": "terrible awful bad experience", "label": "negative"},
+  {"id": 3, "text": "love this library it works great", "label": "positive"},
+  {"id": 4, "text": "hate broken useless waste", "label": "negative"},
+  {"id": 5, "text": "okay average nothing special", "label": "neutral"},
+  {"id": 6, "text": "fine I guess neither good nor bad", "label": "neutral"}
+]

@@ -12,8 +12,9 @@ use ML\IDEA\NLP\Text\Text;
 echo "Example 24 - Bi-directional semantic explorer\n";
 
 // Uses inbuilt bundled datasets by default:
-// - src/Dataset/wordnet/wn.json
-// - src/Dataset/dictionary/en/en.csv
+// Bundled datasets resolve from src/datasets first, then src/Dataset.
+// - src/datasets/wordnet/wn.json
+// - src/datasets/dictionary/en/en.csv
 $wordNet = new WordNetLexicon();
 $dictionary = new EnglishDictionaryLexicon();
 $explorer = new SemanticExplorer($wordNet, $dictionary);

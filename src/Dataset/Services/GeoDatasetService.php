@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ML\IDEA\Dataset\Services;
 
 use ML\IDEA\Dataset\Loaders\JsonDatasetLoader;
+use ML\IDEA\Dataset\Registry\DatasetPaths;
 use ML\IDEA\Exceptions\InvalidArgumentException;
 
 final class GeoDatasetService
@@ -28,7 +29,7 @@ final class GeoDatasetService
             return $this->countries;
         }
 
-        $path = $this->basePath ?? dirname(__DIR__, 2) . '/Dataset/geo';
+        $path = $this->basePath ?? DatasetPaths::resolve('geo');
         $this->countries = (new JsonDatasetLoader())->load($path . '/countries.json');
         return $this->countries;
     }
@@ -40,7 +41,7 @@ final class GeoDatasetService
             return $this->countriesWithStates;
         }
 
-        $path = $this->basePath ?? dirname(__DIR__, 2) . '/Dataset/geo';
+        $path = $this->basePath ?? DatasetPaths::resolve('geo');
         $this->countriesWithStates = (new JsonDatasetLoader())->load($path . '/countries+states.json');
         return $this->countriesWithStates;
     }
@@ -72,7 +73,7 @@ final class GeoDatasetService
 
     private function geoBasePath(): string
     {
-        return $this->basePath ?? dirname(__DIR__, 2) . '/Dataset/geo';
+        return $this->basePath ?? DatasetPaths::resolve('geo');
     }
 
     private function geoFilePath(string $file): string

@@ -84,15 +84,17 @@ final class DatasetGeoSentimentTest extends TestCase
 
         $sentiment = new SentimentAnalyzer();
         $sentiment->train(
-            ['amazing brilliant delightful', 'awful terrible bad'],
-            ['positive', 'negative']
+            ['amazing brilliant delightful', 'awful terrible bad', 'okay average nothing special'],
+            ['positive', 'negative', 'neutral'],
         );
 
         $label = $sentiment->predict('amazing brilliant delightful product');
-        self::assertContains($label, ['positive', 'negative']);
-        $proba = $sentiment->predictProba('terrible bad awful result');
+        self::assertSame('positive', $label);
+        $proba = $sentiment->predictProba('okay average nothing special');
         self::assertArrayHasKey('positive', $proba);
         self::assertArrayHasKey('negative', $proba);
+        self::assertArrayHasKey('neutral', $proba);
+        self::assertSame('neutral', $sentiment->predict('okay average nothing special'));
     }
 
     public function testGeoFeatureBuilderBuildsFeatureVector(): void

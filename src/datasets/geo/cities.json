@@ -1,0 +1,5 @@
+[
+  {"name": "Lusaka", "country_code": "ZM", "state_code": "LUS", "latitude": "-15.4167", "longitude": "28.2833"},
+  {"name": "Ndola", "country_code": "ZM", "state_code": "NDL", "latitude": "-12.9683", "longitude": "28.6364"},
+  {"name": "Kitwe", "country_code": "ZM", "state_code": "KIT", "latitude": "-12.8024", "longitude": "28.2138"}
+]
