@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace ML\IDEA\Preprocessing;
 
+use ML\IDEA\Contracts\PersistableModelInterface;
 use ML\IDEA\Exceptions\ModelNotTrainedException;
 use ML\IDEA\Support\Assert;
 
-final class MinMaxScaler extends AbstractTransformer
+final class MinMaxScaler extends AbstractTransformer implements PersistableModelInterface
 {
     /** @var array<int, float> */
     private array $mins = [];
@@ -65,5 +66,26 @@ final class MinMaxScaler extends AbstractTransformer
         }
 
         return $transformed;
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'mins' => $this->mins,
+            'maxs' => $this->maxs,
+            'featureCount' => $this->featureCount,
+            'fitted' => $this->fitted,
+        ];
+    }
+
+    public static function fromArray(array $data): static
+    {
+        $scaler = new self();
+        $scaler->mins = array_map('floatval', is_array($data['mins'] ?? null) ? $data['mins'] : []);
+        $scaler->maxs = array_map('floatval', is_array($data['maxs'] ?? null) ? $data['maxs'] : []);
+        $scaler->featureCount = (int) ($data['featureCount'] ?? 0);
+        $scaler->fitted = (bool) ($data['fitted'] ?? false);
+
+        return $scaler;
     }
 }

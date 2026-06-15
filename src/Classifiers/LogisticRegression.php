@@ -31,6 +31,7 @@ final class LogisticRegression extends AbstractClassifier implements Persistable
         private readonly float $learningRate = 0.1,
         private readonly int $iterations = 1000,
         private readonly float $l2Penalty = 0.0,
+        private readonly int $batchSize = 0,
     ) {
         if ($learningRate <= 0.0) {
             throw new InvalidArgumentException('learningRate must be greater than 0.');
@@ -66,41 +67,17 @@ final class LogisticRegression extends AbstractClassifier implements Persistable
 
         $sampleCount = count($samples);
         $classCount = count($this->classes);
+        $batchSize = $this->batchSize > 0 ? min($this->batchSize, $sampleCount) : $sampleCount;
 
         for ($iter = 0; $iter < $this->iterations; $iter++) {
-            $gradientWByClass = [];
-            $gradientBByClass = array_fill(0, $classCount, 0.0);
-            for ($k = 0; $k < $classCount; $k++) {
-                $gradientWByClass[$k] = array_fill(0, $this->featureCount, 0.0);
+            $indices = range(0, $sampleCount - 1);
+            if ($batchSize < $sampleCount) {
+                shuffle($indices);
             }
 
-            foreach ($samples as $i => $sample) {
-                $scores = [];
-                for ($k = 0; $k < $classCount; $k++) {
-                    $scores[$k] = LinearAlgebra::dot($sample, $this->weightsByClass[$k]) + $this->biasByClass[$k];
-                }
-
-                $probabilities = $this->softmax($scores);
-
-                for ($k = 0; $k < $classCount; $k++) {
-                    $y = $labels[$i] === $this->classes[$k] ? 1.0 : 0.0;
-                    $error = $probabilities[$k] - $y;
-
-                    foreach ($sample as $j => $value) {
-                        $gradientWByClass[$k][$j] += $error * (float) $value;
-                    }
-
-                    $gradientBByClass[$k] += $error;
-                }
-            }
-
-            for ($k = 0; $k < $classCount; $k++) {
-                foreach ($this->weightsByClass[$k] as $j => $weight) {
-                    $gradient = ($gradientWByClass[$k][$j] / $sampleCount) + ($this->l2Penalty * $weight);
-                    $this->weightsByClass[$k][$j] -= $this->learningRate * $gradient;
-                }
-
-                $this->biasByClass[$k] -= $this->learningRate * ($gradientBByClass[$k] / $sampleCount);
+            for ($start = 0; $start < $sampleCount; $start += $batchSize) {
+                $batch = array_slice($indices, $start, $batchSize);
+                $this->applyBatch($samples, $labels, $batch, $classCount, $sampleCount);
             }
         }
 
@@ -190,6 +167,7 @@ final class LogisticRegression extends AbstractClassifier implements Persistable
             'learningRate' => $this->learningRate,
             'iterations' => $this->iterations,
             'l2Penalty' => $this->l2Penalty,
+            'batchSize' => $this->batchSize,
         ];
     }
 
@@ -230,6 +208,51 @@ final class LogisticRegression extends AbstractClassifier implements Persistable
         $model->trained = (bool) ($data['trained'] ?? false);
 
         return $model;
+    }
+
+    /**
+     * @param array<int, array<int, float|int>> $samples
+     * @param array<int, int|float|string|bool> $labels
+     * @param array<int, int> $batch
+     */
+    private function applyBatch(array $samples, array $labels, array $batch, int $classCount, int $sampleCount): void
+    {
+        $batchCount = max(1, count($batch));
+        $gradientWByClass = [];
+        $gradientBByClass = array_fill(0, $classCount, 0.0);
+        for ($k = 0; $k < $classCount; $k++) {
+            $gradientWByClass[$k] = array_fill(0, $this->featureCount, 0.0);
+        }
+
+        foreach ($batch as $i) {
+            $sample = $samples[$i];
+            $scores = [];
+            for ($k = 0; $k < $classCount; $k++) {
+                $scores[$k] = LinearAlgebra::dot($sample, $this->weightsByClass[$k]) + $this->biasByClass[$k];
+            }
+
+            $probabilities = $this->softmax($scores);
+
+            for ($k = 0; $k < $classCount; $k++) {
+                $y = $labels[$i] === $this->classes[$k] ? 1.0 : 0.0;
+                $error = $probabilities[$k] - $y;
+
+                foreach ($sample as $j => $value) {
+                    $gradientWByClass[$k][$j] += $error * (float) $value;
+                }
+
+                $gradientBByClass[$k] += $error;
+            }
+        }
+
+        for ($k = 0; $k < $classCount; $k++) {
+            foreach ($this->weightsByClass[$k] as $j => $weight) {
+                $gradient = ($gradientWByClass[$k][$j] / $batchCount) + ($this->l2Penalty * $weight);
+                $this->weightsByClass[$k][$j] -= $this->learningRate * $gradient;
+            }
+
+            $this->biasByClass[$k] -= $this->learningRate * ($gradientBByClass[$k] / $batchCount);
+        }
     }
 
     /**

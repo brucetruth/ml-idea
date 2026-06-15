@@ -13,7 +13,12 @@ $samples = [[0, 0], [0, 1], [1, 0], [1, 1], [0.8, 0.9], [0.1, 0.2], [0.95, 0.7],
 $labels = [0, 1, 1, 1, 1, 0, 1, 0];
 
 $base = new LogisticRegression(learningRate: 0.2, iterations: 2000);
-$calibrated = new CalibratedClassifierCV($base, cv: 4, iterations: 250, learningRate: 0.1);
+$base->train($samples, $labels);
+
+$prefit = new CalibratedClassifierCV($base, cv: 'prefit', iterations: 250, learningRate: 0.1);
+$prefit->train($samples, $labels);
+
+$calibrated = new CalibratedClassifierCV(new LogisticRegression(learningRate: 0.2, iterations: 2000), cv: 4, iterations: 250, learningRate: 0.1);
 $calibrated->fit($samples, $labels);
 
 $scores = [];
@@ -26,5 +31,6 @@ $threshold = ThresholdTuner::optimize($labels, $scores, 1, metric: 'f1', steps: 
 $pred = ThresholdTuner::apply($scores, $threshold, 1, 0);
 
 echo "Example 03 - Calibration + Threshold Tuning\n";
+echo 'Prefit calibrated P(class=1) for [1,1]: ' . round((float) ($prefit->predictProba([1, 1])[1] ?? 0), 4) . PHP_EOL;
 echo 'Chosen threshold (F1): ' . round($threshold, 4) . PHP_EOL;
 echo 'F1 after tuning: ' . round(ClassificationMetrics::f1Score($labels, $pred, 1), 4) . PHP_EOL;

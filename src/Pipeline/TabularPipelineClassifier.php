@@ -10,9 +10,11 @@ use ML\IDEA\Contracts\PersistableModelInterface;
 use ML\IDEA\Contracts\TransformerInterface;
 use ML\IDEA\Exceptions\SerializationException;
 use ML\IDEA\Model\PipelineSerializer;
+use ML\IDEA\Preprocessing\OneHotEncoder;
 use ML\IDEA\Support\Assert;
 
-final class PipelineClassifier extends AbstractClassifier implements PersistableModelInterface
+/** Pipeline for mixed categorical tabular features + numeric transformers. */
+final class TabularPipelineClassifier extends AbstractClassifier implements PersistableModelInterface
 {
     /** @var array<int, TransformerInterface> */
     private array $transformers;
@@ -20,16 +22,25 @@ final class PipelineClassifier extends AbstractClassifier implements Persistable
     /**
      * @param array<int, TransformerInterface> $transformers
      */
-    public function __construct(array $transformers, private readonly ClassifierInterface $classifier)
-    {
+    public function __construct(
+        private OneHotEncoder $encoder,
+        array $transformers,
+        private readonly ClassifierInterface $classifier,
+    ) {
         $this->transformers = $transformers;
     }
 
+    /**
+     * @param array<int, array<int, string|int|float|bool>> $samples
+     * @param array<int, int|float|string|bool> $labels
+     */
     public function train(array $samples, array $labels): void
     {
-        Assert::numericMatrix($samples);
+        if ($samples === [] || count($samples) !== count($labels)) {
+            throw new \InvalidArgumentException('Samples and labels must be non-empty and same length.');
+        }
 
-        $x = $samples;
+        $x = $this->encoder->fitTransform($samples);
         foreach ($this->transformers as $transformer) {
             $x = $transformer->fitTransform($x);
         }
@@ -37,11 +48,10 @@ final class PipelineClassifier extends AbstractClassifier implements Persistable
         $this->classifier->train($x, $labels);
     }
 
+    /** @param array<int, string|int|float|bool> $sample */
     public function predict(array $sample): int|float|string|bool
     {
-        Assert::numericVector($sample);
-        $matrix = [$sample];
-
+        $matrix = $this->encoder->transform([$sample]);
         foreach ($this->transformers as $transformer) {
             $matrix = $transformer->transform($matrix);
         }
@@ -49,16 +59,20 @@ final class PipelineClassifier extends AbstractClassifier implements Persistable
         return $this->classifier->predict($matrix[0]);
     }
 
+    /** @param array<int, array<int, string|int|float|bool>> $samples */
     public function predictBatch(array $samples): array
     {
-        Assert::numericMatrix($samples);
-        $matrix = $samples;
-
+        $matrix = $this->encoder->transform($samples);
         foreach ($this->transformers as $transformer) {
             $matrix = $transformer->transform($matrix);
         }
 
         return $this->classifier->predictBatch($matrix);
+    }
+
+    public function encoder(): OneHotEncoder
+    {
+        return $this->encoder;
     }
 
     /** @return array<int, TransformerInterface> */
@@ -75,7 +89,8 @@ final class PipelineClassifier extends AbstractClassifier implements Persistable
     public function toArray(): array
     {
         return [
-            'type' => 'numeric',
+            'type' => 'tabular',
+            'encoder' => ['class' => $this->encoder::class, 'state' => $this->encoder->toArray()],
             'transformers' => PipelineSerializer::exportTransformers($this->transformers),
             'estimator' => [
                 'class' => $this->classifier::class,
@@ -86,6 +101,12 @@ final class PipelineClassifier extends AbstractClassifier implements Persistable
 
     public static function fromArray(array $data): static
     {
+        $encoderEntry = $data['encoder'] ?? null;
+        if (!is_array($encoderEntry)) {
+            throw new SerializationException('Tabular pipeline missing encoder state.');
+        }
+        $encoder = OneHotEncoder::fromArray(is_array($encoderEntry['state'] ?? null) ? $encoderEntry['state'] : []);
+
         $transformers = [];
         foreach ($data['transformers'] ?? [] as $entry) {
             if (!is_array($entry)) {
@@ -93,21 +114,21 @@ final class PipelineClassifier extends AbstractClassifier implements Persistable
             }
             $transformer = PipelineSerializer::loadPersistable($entry);
             if (!$transformer instanceof TransformerInterface) {
-                throw new SerializationException('Invalid transformer in pipeline.');
+                throw new SerializationException('Invalid transformer in tabular pipeline.');
             }
             $transformers[] = $transformer;
         }
 
         $estimatorEntry = $data['estimator'] ?? $data['classifier'] ?? null;
         if (!is_array($estimatorEntry)) {
-            throw new SerializationException('Pipeline missing estimator state.');
+            throw new SerializationException('Tabular pipeline missing estimator state.');
         }
         $estimator = PipelineSerializer::loadPersistable($estimatorEntry);
         if (!$estimator instanceof ClassifierInterface) {
-            throw new SerializationException('Pipeline estimator must be a classifier.');
+            throw new SerializationException('Tabular pipeline estimator must be a classifier.');
         }
 
-        return new self($transformers, $estimator);
+        return new self($encoder, $transformers, $estimator);
     }
 
     private static function requirePersistable(object $model): PersistableModelInterface

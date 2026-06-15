@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace ML\IDEA\Preprocessing;
 
+use ML\IDEA\Contracts\PersistableModelInterface;
 use ML\IDEA\Exceptions\ModelNotTrainedException;
 
-final class OneHotEncoder
+final class OneHotEncoder implements PersistableModelInterface
 {
     /** @var array<int, array<string, int>> */
     private array $categories = [];
@@ -82,5 +83,22 @@ final class OneHotEncoder
     private static function toKey(string|int|float|bool $value): string
     {
         return get_debug_type($value) . ':' . json_encode($value, JSON_THROW_ON_ERROR);
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'categories' => $this->categories,
+            'fitted' => $this->fitted,
+        ];
+    }
+
+    public static function fromArray(array $data): static
+    {
+        $encoder = new self();
+        $encoder->categories = is_array($data['categories'] ?? null) ? $data['categories'] : [];
+        $encoder->fitted = (bool) ($data['fitted'] ?? false);
+
+        return $encoder;
     }
 }

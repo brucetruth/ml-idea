@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace ML\IDEA\Regression;
 
+use ML\IDEA\Contracts\PersistableModelInterface;
 use ML\IDEA\Exceptions\InvalidArgumentException;
 use ML\IDEA\Exceptions\ModelNotTrainedException;
 use ML\IDEA\Math\LinearAlgebra;
 use ML\IDEA\Support\Assert;
 
-final class LinearRegression extends AbstractRegressor
+final class LinearRegression extends AbstractRegressor implements PersistableModelInterface
 {
     /** @var array<int, float> */
     private array $weights = [];
@@ -80,5 +81,33 @@ final class LinearRegression extends AbstractRegressor
         Assert::sampleMatchesDimension($sample, $this->featureCount);
 
         return LinearAlgebra::dot($sample, $this->weights) + $this->bias;
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'weights' => $this->weights,
+            'bias' => $this->bias,
+            'featureCount' => $this->featureCount,
+            'trained' => $this->trained,
+            'learningRate' => $this->learningRate,
+            'iterations' => $this->iterations,
+            'l2Penalty' => $this->l2Penalty,
+        ];
+    }
+
+    public static function fromArray(array $data): static
+    {
+        $model = new self(
+            (float) ($data['learningRate'] ?? 0.01),
+            (int) ($data['iterations'] ?? 2000),
+            (float) ($data['l2Penalty'] ?? 0.0),
+        );
+        $model->weights = array_map('floatval', is_array($data['weights'] ?? null) ? $data['weights'] : []);
+        $model->bias = (float) ($data['bias'] ?? 0.0);
+        $model->featureCount = (int) ($data['featureCount'] ?? 0);
+        $model->trained = (bool) ($data['trained'] ?? false);
+
+        return $model;
     }
 }

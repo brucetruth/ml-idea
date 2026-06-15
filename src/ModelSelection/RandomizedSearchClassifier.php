@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace ML\IDEA\ModelSelection;
 
 use ML\IDEA\Contracts\ClassifierInterface;
+use ML\IDEA\Contracts\ProbabilisticClassifierInterface;
 use ML\IDEA\Data\KFold;
 use ML\IDEA\Data\StratifiedKFold;
 use ML\IDEA\Exceptions\InvalidArgumentException;
+use ML\IDEA\Metrics\ClassificationMetrics;
 
-final class GridSearchClassifier
+final class RandomizedSearchClassifier
 {
     private readonly \Closure $factory;
 
@@ -27,9 +29,9 @@ final class GridSearchClassifier
         private readonly string $scoring = 'accuracy',
         private readonly int $cv = 5,
         private readonly bool $stratified = true,
+        private readonly ?int $seed = 42,
     ) {
         $this->factory = \Closure::fromCallable($factory);
-
         if ($this->cv <= 1) {
             throw new InvalidArgumentException('cv must be greater than 1.');
         }
@@ -40,19 +42,28 @@ final class GridSearchClassifier
      * @param array<int, int|float|string|bool> $labels
      * @param array<string, array<int, scalar>> $paramGrid
      */
-    public function fit(array $samples, array $labels, array $paramGrid): void
+    public function fit(array $samples, array $labels, array $paramGrid, int $nIter = 10): void
     {
         if ($samples === [] || $labels === [] || count($samples) !== count($labels)) {
             throw new InvalidArgumentException('Samples and labels must be non-empty and have same length.');
         }
+        if ($nIter <= 0) {
+            throw new InvalidArgumentException('nIter must be positive.');
+        }
+
+        $combinations = GridSearchClassifier::expandGrid($paramGrid);
+        if ($this->seed !== null) {
+            mt_srand($this->seed);
+        }
+        shuffle($combinations);
+        $combinations = array_slice($combinations, 0, min($nIter, count($combinations)));
 
         $cv = $this->effectiveCv($samples, $labels);
         $folds = $this->stratified
             ? StratifiedKFold::split($labels, $cv, true, 42)
             : KFold::split(count($samples), $cv, true, 42);
 
-        $paramCombinations = self::expandGrid($paramGrid);
-        foreach ($paramCombinations as $params) {
+        foreach ($combinations as $params) {
             $scores = [];
             foreach ($folds as $fold) {
                 [$xTrain, $yTrain, $xTest, $yTest] = SearchScoring::buildFoldData($samples, $labels, $fold['train'], $fold['test']);
@@ -71,26 +82,6 @@ final class GridSearchClassifier
 
         $this->bestEstimator = ($this->factory)($this->bestParams);
         $this->bestEstimator->train($samples, $labels);
-    }
-
-    /** @return array<string, scalar|array<int, scalar>> */
-    public function bestParams(): array
-    {
-        return $this->bestParams;
-    }
-
-    public function bestScore(): float
-    {
-        return $this->bestScore;
-    }
-
-    public function bestEstimator(): ClassifierInterface
-    {
-        if ($this->bestEstimator === null) {
-            throw new InvalidArgumentException('Grid search has not been fitted yet.');
-        }
-
-        return $this->bestEstimator;
     }
 
     /**
@@ -113,26 +104,23 @@ final class GridSearchClassifier
         return $cv;
     }
 
-    /**
-     * @param array<string, array<int, scalar>> $grid
-     * @return array<int, array<string, scalar|array<int, scalar>>>
-     */
-    public static function expandGrid(array $grid): array
+    /** @return array<string, scalar|array<int, scalar>> */
+    public function bestParams(): array
     {
-        $result = [[]];
+        return $this->bestParams;
+    }
 
-        foreach ($grid as $key => $values) {
-            $new = [];
-            foreach ($result as $combination) {
-                foreach ($values as $value) {
-                    $next = $combination;
-                    $next[$key] = $value;
-                    $new[] = $next;
-                }
-            }
-            $result = $new;
+    public function bestScore(): float
+    {
+        return $this->bestScore;
+    }
+
+    public function bestEstimator(): ClassifierInterface
+    {
+        if ($this->bestEstimator === null) {
+            throw new InvalidArgumentException('Randomized search has not been fitted yet.');
         }
 
-        return $result;
+        return $this->bestEstimator;
     }
 }

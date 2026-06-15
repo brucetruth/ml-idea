@@ -10,23 +10,26 @@ use ML\IDEA\Exceptions\ModelNotTrainedException;
 use ML\IDEA\Regression\AbstractRegressor;
 use ML\IDEA\Support\Assert;
 
-final class RandomForestRegressor extends AbstractRegressor implements PersistableModelInterface
+/** Gradient boosting for regression using shallow regression trees. */
+final class GradientBoostingRegressor extends AbstractRegressor implements PersistableModelInterface
 {
     /** @var array<int, array<string, mixed>> */
-    private array $trees = [];
+    private array $stages = [];
 
     private int $featureCount = 0;
     private bool $trained = false;
 
     public function __construct(
-        private readonly int $nEstimators = 50,
+        private readonly int $nEstimators = 100,
+        private readonly float $learningRate = 0.1,
         private readonly int $maxDepth = 3,
-        private readonly int $minSamplesSplit = 2,
-        private readonly ?int $maxFeatures = null,
         private readonly ?int $seed = 42,
     ) {
         if ($this->nEstimators <= 0) {
             throw new InvalidArgumentException('nEstimators must be positive.');
+        }
+        if ($this->learningRate <= 0.0) {
+            throw new InvalidArgumentException('learningRate must be positive.');
         }
     }
 
@@ -37,32 +40,29 @@ final class RandomForestRegressor extends AbstractRegressor implements Persistab
             throw new InvalidArgumentException('Targets must be non-empty and match sample count.');
         }
 
-        $nSamples = count($samples);
         $this->featureCount = count($samples[0]);
-        $maxFeatures = $this->maxFeatures ?? max(1, intdiv($this->featureCount, 3));
-        $maxFeatures = min($maxFeatures, $this->featureCount);
+        $this->stages = [];
+
+        $n = count($samples);
+        $predictions = array_fill(0, $n, 0.0);
 
         if ($this->seed !== null) {
             mt_srand($this->seed);
         }
 
-        $this->trees = [];
-        for ($t = 0; $t < $this->nEstimators; $t++) {
-            $bootstrapSamples = [];
-            $bootstrapTargets = [];
-            for ($i = 0; $i < $nSamples; $i++) {
-                $idx = mt_rand(0, $nSamples - 1);
-                $bootstrapSamples[] = $samples[$idx];
-                $bootstrapTargets[] = (float) $targets[$idx];
+        for ($m = 0; $m < $this->nEstimators; $m++) {
+            $residuals = [];
+            foreach ($targets as $i => $target) {
+                $residuals[] = (float) $target - $predictions[$i];
             }
 
-            $features = range(0, $this->featureCount - 1);
-            shuffle($features);
-            $features = array_slice($features, 0, $maxFeatures);
+            $tree = new DecisionTree($this->maxDepth, 2, 'regression', $this->seed);
+            $tree->fit($samples, $residuals);
+            $this->stages[] = $tree->toArray();
 
-            $tree = new DecisionTree($this->maxDepth, $this->minSamplesSplit, 'regression', $this->seed);
-            $tree->fit($bootstrapSamples, $bootstrapTargets, $features);
-            $this->trees[] = $tree->toArray();
+            foreach ($samples as $i => $sample) {
+                $predictions[$i] += $this->learningRate * (float) $tree->predict($sample);
+            }
         }
 
         $this->trained = true;
@@ -71,30 +71,29 @@ final class RandomForestRegressor extends AbstractRegressor implements Persistab
     public function predict(array $sample): float
     {
         if (!$this->trained) {
-            throw new ModelNotTrainedException('RandomForestRegressor has not been trained yet.');
+            throw new ModelNotTrainedException('GradientBoostingRegressor has not been trained yet.');
         }
 
         Assert::sampleMatchesDimension($sample, $this->featureCount);
 
-        $sum = 0.0;
-        foreach ($this->trees as $treeState) {
-            $tree = DecisionTree::fromArray($treeState);
-            $sum += (float) $tree->predict($sample);
+        $score = 0.0;
+        foreach ($this->stages as $stage) {
+            $tree = DecisionTree::fromArray($stage);
+            $score += $this->learningRate * (float) $tree->predict($sample);
         }
 
-        return $sum / max(1, count($this->trees));
+        return $score;
     }
 
     public function toArray(): array
     {
         return [
             'nEstimators' => $this->nEstimators,
+            'learningRate' => $this->learningRate,
             'maxDepth' => $this->maxDepth,
-            'minSamplesSplit' => $this->minSamplesSplit,
-            'maxFeatures' => $this->maxFeatures,
             'seed' => $this->seed,
             'featureCount' => $this->featureCount,
-            'trees' => $this->trees,
+            'stages' => $this->stages,
             'trained' => $this->trained,
         ];
     }
@@ -102,14 +101,13 @@ final class RandomForestRegressor extends AbstractRegressor implements Persistab
     public static function fromArray(array $data): static
     {
         $model = new self(
-            (int) ($data['nEstimators'] ?? 50),
+            (int) ($data['nEstimators'] ?? 100),
+            (float) ($data['learningRate'] ?? 0.1),
             (int) ($data['maxDepth'] ?? 3),
-            (int) ($data['minSamplesSplit'] ?? 2),
-            isset($data['maxFeatures']) ? (int) $data['maxFeatures'] : null,
             isset($data['seed']) ? (int) $data['seed'] : null,
         );
         $model->featureCount = (int) ($data['featureCount'] ?? 0);
-        $model->trees = is_array($data['trees'] ?? null) ? $data['trees'] : [];
+        $model->stages = is_array($data['stages'] ?? null) ? $data['stages'] : [];
         $model->trained = (bool) ($data['trained'] ?? false);
 
         return $model;

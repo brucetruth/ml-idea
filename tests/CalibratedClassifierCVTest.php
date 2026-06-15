@@ -24,4 +24,20 @@ final class CalibratedClassifierCVTest extends TestCase
         self::assertGreaterThanOrEqual(0.0, array_values($proba)[0]);
         self::assertLessThanOrEqual(1.0, array_values($proba)[0]);
     }
+
+    public function testPrefitModeCalibratesWithoutRetrainingBase(): void
+    {
+        $calibrationX = [[0, 0], [0, 1], [1, 0], [3, 3], [3, 4], [4, 3]];
+        $calibrationY = [0, 0, 0, 1, 1, 1];
+
+        $base = new LogisticRegression(iterations: 600);
+        $base->train($calibrationX, $calibrationY);
+
+        $cal = new CalibratedClassifierCV($base, cv: 'prefit', iterations: 200);
+        $cal->train($calibrationX, $calibrationY);
+
+        $proba = $cal->predictProba([3.5, 3.5]);
+        self::assertEqualsWithDelta(1.0, array_sum($proba), 0.01);
+        self::assertGreaterThan(0.5, $proba[1] ?? 0.0);
+    }
 }

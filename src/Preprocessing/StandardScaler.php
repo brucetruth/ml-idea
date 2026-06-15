@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace ML\IDEA\Preprocessing;
 
+use ML\IDEA\Contracts\PersistableModelInterface;
 use ML\IDEA\Exceptions\ModelNotTrainedException;
 use ML\IDEA\Support\Assert;
 
-final class StandardScaler extends AbstractTransformer
+final class StandardScaler extends AbstractTransformer implements PersistableModelInterface
 {
     /** @var array<int, float> */
     private array $means = [];
@@ -70,5 +71,26 @@ final class StandardScaler extends AbstractTransformer
         }
 
         return $transformed;
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'means' => $this->means,
+            'stdDevs' => $this->stdDevs,
+            'featureCount' => $this->featureCount,
+            'fitted' => $this->fitted,
+        ];
+    }
+
+    public static function fromArray(array $data): static
+    {
+        $scaler = new self();
+        $scaler->means = array_map('floatval', is_array($data['means'] ?? null) ? $data['means'] : []);
+        $scaler->stdDevs = array_map('floatval', is_array($data['stdDevs'] ?? null) ? $data['stdDevs'] : []);
+        $scaler->featureCount = (int) ($data['featureCount'] ?? 0);
+        $scaler->fitted = (bool) ($data['fitted'] ?? false);
+
+        return $scaler;
     }
 }

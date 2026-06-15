@@ -5,25 +5,35 @@ declare(strict_types=1);
 namespace ML\IDEA\Ensemble;
 
 use ML\IDEA\Classifiers\AbstractClassifier;
+use ML\IDEA\Contracts\PersistableModelInterface;
+use ML\IDEA\Contracts\ProbabilisticClassifierInterface;
 use ML\IDEA\Exceptions\InvalidArgumentException;
 use ML\IDEA\Exceptions\ModelNotTrainedException;
 use ML\IDEA\Support\Assert;
 
-final class RandomForestClassifier extends AbstractClassifier
+final class RandomForestClassifier extends AbstractClassifier implements PersistableModelInterface, ProbabilisticClassifierInterface
 {
-    /** @var array<int, array{feature:int, threshold:float, left:int|float|string|bool, right:int|float|string|bool}> */
+    /** @var array<int, array<string, mixed>> */
     private array $trees = [];
 
     private int $featureCount = 0;
     private bool $trained = false;
 
+    /** @var array<int, int|float|string|bool> */
+    private array $classes = [];
+
     public function __construct(
         private readonly int $nEstimators = 50,
+        private readonly int $maxDepth = 3,
+        private readonly int $minSamplesSplit = 2,
         private readonly ?int $maxFeatures = null,
         private readonly ?int $seed = 42,
     ) {
         if ($this->nEstimators <= 0) {
             throw new InvalidArgumentException('nEstimators must be positive.');
+        }
+        if ($this->maxDepth <= 0) {
+            throw new InvalidArgumentException('maxDepth must be positive.');
         }
     }
 
@@ -34,6 +44,7 @@ final class RandomForestClassifier extends AbstractClassifier
 
         $nSamples = count($samples);
         $this->featureCount = count($samples[0]);
+        $this->classes = array_values(array_unique($labels, SORT_REGULAR));
         $maxFeatures = $this->maxFeatures ?? max(1, (int) floor(sqrt($this->featureCount)));
         $maxFeatures = min($maxFeatures, $this->featureCount);
 
@@ -55,7 +66,9 @@ final class RandomForestClassifier extends AbstractClassifier
             shuffle($features);
             $features = array_slice($features, 0, $maxFeatures);
 
-            $this->trees[] = $this->bestStump($bootstrapSamples, $bootstrapLabels, $features);
+            $tree = new DecisionTree($this->maxDepth, $this->minSamplesSplit, 'classification', $this->seed);
+            $tree->fit($bootstrapSamples, $bootstrapLabels, $features);
+            $this->trees[] = $tree->toArray();
         }
 
         $this->trained = true;
@@ -63,103 +76,72 @@ final class RandomForestClassifier extends AbstractClassifier
 
     public function predict(array $sample): int|float|string|bool
     {
+        $proba = $this->predictProba($sample);
+        arsort($proba);
+
+        return array_key_first($proba);
+    }
+
+    public function predictProba(array $sample): array
+    {
         if (!$this->trained) {
             throw new ModelNotTrainedException('RandomForestClassifier has not been trained yet.');
         }
 
         Assert::sampleMatchesDimension($sample, $this->featureCount);
 
-        $votes = [];
-        foreach ($this->trees as $tree) {
-            $prediction = ((float) $sample[$tree['feature']] <= $tree['threshold']) ? $tree['left'] : $tree['right'];
+        $counts = array_fill_keys(array_map(fn ($c) => $this->labelKey($c), $this->classes), 0);
+        foreach ($this->trees as $treeState) {
+            $tree = DecisionTree::fromArray($treeState);
+            $prediction = $tree->predict($sample);
             $key = $this->labelKey($prediction);
-            $votes[$key] = ($votes[$key] ?? ['label' => $prediction, 'count' => 0]);
-            $votes[$key]['count']++;
-        }
-
-        usort($votes, static fn (array $a, array $b): int => $b['count'] <=> $a['count']);
-        return $votes[0]['label'];
-    }
-
-    /**
-     * @param array<int, array<int, float|int>> $samples
-     * @param array<int, int|float|string|bool> $labels
-     * @param array<int, int> $features
-     * @return array{feature:int, threshold:float, left:int|float|string|bool, right:int|float|string|bool}
-     */
-    private function bestStump(array $samples, array $labels, array $features): array
-    {
-        $bestFeature = $features[0];
-        $bestThreshold = (float) $samples[0][$bestFeature];
-        $bestScore = INF;
-        $bestLeft = $labels[0];
-        $bestRight = $labels[0];
-
-        foreach ($features as $feature) {
-            $thresholds = array_map(static fn (array $row): float => (float) $row[$feature], $samples);
-            $thresholds = array_values(array_unique($thresholds));
-
-            foreach ($thresholds as $threshold) {
-                $left = $right = [];
-                foreach ($samples as $i => $row) {
-                    if ((float) $row[$feature] <= $threshold) {
-                        $left[] = $labels[$i];
-                    } else {
-                        $right[] = $labels[$i];
-                    }
-                }
-
-                if ($left === [] || $right === []) {
-                    continue;
-                }
-
-                $score = (count($left) * $this->gini($left) + count($right) * $this->gini($right)) / count($samples);
-                if ($score < $bestScore) {
-                    $bestScore = $score;
-                    $bestFeature = $feature;
-                    $bestThreshold = $threshold;
-                    $bestLeft = $this->majority($left);
-                    $bestRight = $this->majority($right);
-                }
-            }
-        }
-
-        return ['feature' => $bestFeature, 'threshold' => $bestThreshold, 'left' => $bestLeft, 'right' => $bestRight];
-    }
-
-    /** @param array<int, int|float|string|bool> $labels */
-    private function gini(array $labels): float
-    {
-        $counts = [];
-        foreach ($labels as $label) {
-            $key = $this->labelKey($label);
             $counts[$key] = ($counts[$key] ?? 0) + 1;
         }
 
-        $n = count($labels);
-        $sum = 0.0;
-        foreach ($counts as $count) {
-            $p = $count / $n;
-            $sum += $p * $p;
+        $total = max(1, array_sum($counts));
+        $proba = [];
+        foreach ($this->classes as $class) {
+            $proba[$class] = ($counts[$this->labelKey($class)] ?? 0) / $total;
         }
 
-        return 1.0 - $sum;
+        return $proba;
     }
 
-    /** @param array<int, int|float|string|bool> $labels */
-    private function majority(array $labels): int|float|string|bool
+    public function predictProbaBatch(array $samples): array
     {
-        $counts = [];
-        $map = [];
-        foreach ($labels as $label) {
-            $key = $this->labelKey($label);
-            $counts[$key] = ($counts[$key] ?? 0) + 1;
-            $map[$key] = $label;
-        }
+        return array_map(fn (array $sample): array => $this->predictProba($sample), $samples);
+    }
 
-        arsort($counts);
-        $key = (string) array_key_first($counts);
-        return $map[$key];
+    public function toArray(): array
+    {
+        return [
+            'nEstimators' => $this->nEstimators,
+            'maxDepth' => $this->maxDepth,
+            'minSamplesSplit' => $this->minSamplesSplit,
+            'maxFeatures' => $this->maxFeatures,
+            'seed' => $this->seed,
+            'featureCount' => $this->featureCount,
+            'classes' => $this->classes,
+            'trees' => $this->trees,
+            'trained' => $this->trained,
+        ];
+    }
+
+    public static function fromArray(array $data): static
+    {
+        $model = new self(
+            (int) ($data['nEstimators'] ?? 50),
+            (int) ($data['maxDepth'] ?? 3),
+            (int) ($data['minSamplesSplit'] ?? 2),
+            isset($data['maxFeatures']) ? (int) $data['maxFeatures'] : null,
+            isset($data['seed']) ? (int) $data['seed'] : null,
+        );
+        $model->featureCount = (int) ($data['featureCount'] ?? 0);
+        $model->classes = is_array($data['classes'] ?? null) ? $data['classes'] : [];
+        $model->trees = is_array($data['trees'] ?? null) ? $data['trees'] : [];
+        $model->trained = (bool) ($data['trained'] ?? false);
+
+        return $model;
     }
 
     private function labelKey(int|float|string|bool $label): string
