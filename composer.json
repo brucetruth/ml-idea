@@ -17,7 +17,9 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "ML\\IDEA\\Tests\\": "tests/"
+      "ML\\IDEA\\Tests\\": "tests/",
+      "ML\\IDEA\\Laravel\\": "packages/laravel/src/",
+      "ML\\IDEA\\Examples\\AiAdmin\\": "examples/ai-admin/"
     }
   },
   "require": {
@@ -27,6 +29,13 @@
   "require-dev": {
     "phpunit/phpunit": "^11.5",
     "phpstan/phpstan": "^1.12"
+  },
+  "suggest": {
+    "open-telemetry/sdk": "Export ToolRoutingAgent spans via OpenTelemetry",
+    "ext-redis": "Redis-backed agent session store",
+    "ext-parallel": "Parallel tool execution via ParallelToolCallRunner",
+    "psr/log": "Psr3AgentRunLogger for PSR-3 audit logging",
+    "brucetruth/ml-idea-laravel": "Laravel service provider, config, and Artisan commands for ToolRoutingAgent"
   },
   "scripts": {
     "test": "phpunit --configuration phpunit.xml.dist",

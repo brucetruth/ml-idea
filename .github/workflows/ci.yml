@@ -28,3 +28,6 @@ jobs:
 
       - name: Run tests
         run: composer test
+
+      - name: Verify seed datasets
+        run: php -r "require 'vendor/autoload.php'; \$m = ML\\IDEA\\Dataset\\Registry\\DatasetIntegrity::missingSeedDatasets(); if (\$m !== []) { fwrite(STDERR, 'Missing seed datasets: '.implode(', ', \$m).PHP_EOL); exit(1); }"

@@ -4,3 +4,5 @@ composer.lock
 /.idea
 *.cache
 *.json
+!src/datasets/**/*.json
+!src/Dataset/**/*.json
