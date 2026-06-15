@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ML\IDEA\Clustering;
 
 use ML\IDEA\Contracts\ClustererInterface;
+use ML\IDEA\Data\SparseVector;
 use ML\IDEA\Exceptions\InvalidArgumentException;
 use ML\IDEA\Exceptions\ModelNotTrainedException;
 use ML\IDEA\Math\Distance;
@@ -34,6 +35,7 @@ final class MiniBatchKMeans implements ClustererInterface
 
     public function fit(array $samples): void
     {
+        $samples = SparseVector::prepareDenseMatrix($samples);
         Assert::numericMatrix($samples);
         $nSamples = count($samples);
         $this->featureCount = count($samples[0]);
@@ -82,7 +84,12 @@ final class MiniBatchKMeans implements ClustererInterface
             throw new ModelNotTrainedException('MiniBatchKMeans must be fitted before predict.');
         }
 
+        if (SparseVector::isSparseRow($sample, $this->featureCount)) {
+            $sample = SparseVector::toDense($sample, $this->featureCount);
+        }
+
         Assert::sampleMatchesDimension($sample, $this->featureCount);
+
         return $this->nearestCentroid($sample);
     }
 

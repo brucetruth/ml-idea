@@ -6,3 +6,4 @@ composer.lock
 *.json
 !src/datasets/**/*.json
 !src/Dataset/**/*.json
+!tests/fixtures/**/*.json

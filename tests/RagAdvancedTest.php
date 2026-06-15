@@ -76,9 +76,38 @@ final class RagAdvancedTest extends TestCase
         self::assertArrayHasKey('citations', $result);
         self::assertArrayHasKey('diagnostics', $result);
         self::assertArrayHasKey('verification', $result);
+        self::assertArrayHasKey('expanded_queries', $result['diagnostics']);
+        self::assertSame($result['diagnostics']['query_count'], count($result['diagnostics']['expanded_queries']));
+        self::assertContains('how to save and load model', $result['diagnostics']['expanded_queries']);
 
-        $parts = iterator_to_array($chain->askStream('how to save and load model', 2));
+        $expandCalls = 0;
+        $trackingExpander = new class ($expandCalls) implements \ML\IDEA\RAG\Contracts\QueryExpanderInterface {
+            public function __construct(private int &$calls)
+            {
+            }
+
+            public function expand(string $query): array
+            {
+                $this->calls++;
+
+                return [$query, $query . ' explanation'];
+            }
+        };
+
+        $streamChain = new RetrievalQAChain(
+            new HashEmbedder(16),
+            new InMemoryVectorStore(),
+            new RecursiveTextSplitter(80, 10),
+            new EchoLlmClient(),
+            queryExpander: $trackingExpander,
+        );
+        $streamChain->index([
+            new Document('doc-a', 'ModelSerializer handles save and load.'),
+        ]);
+
+        $parts = iterator_to_array($streamChain->askStream('how to save and load model', 2));
         self::assertNotEmpty($parts);
+        self::assertSame(1, $expandCalls);
     }
 
     public function testToolCallingAgentCanInvokeRagQaTool(): void

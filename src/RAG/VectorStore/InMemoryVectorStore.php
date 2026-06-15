@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ML\IDEA\RAG\VectorStore;
 
+use ML\IDEA\Data\SparseVector;
 use ML\IDEA\RAG\Contracts\PersistableVectorStoreInterface;
 
 final class InMemoryVectorStore implements PersistableVectorStoreInterface
@@ -37,7 +38,7 @@ final class InMemoryVectorStore implements PersistableVectorStoreInterface
                 'vector' => $item['vector'],
                 'text' => $item['text'],
                 'metadata' => $item['metadata'],
-                'score' => self::cosineSimilarity($queryVector, $item['vector']),
+                'score' => SparseVector::cosineSimilarity($queryVector, $item['vector']),
             ];
         }
 
@@ -66,29 +67,5 @@ final class InMemoryVectorStore implements PersistableVectorStoreInterface
         }
 
         return true;
-    }
-
-    /** @param array<int, float> $a @param array<int, float> $b */
-    private static function cosineSimilarity(array $a, array $b): float
-    {
-        $n = min(count($a), count($b));
-        if ($n === 0) {
-            return 0.0;
-        }
-
-        $dot = 0.0;
-        $normA = 0.0;
-        $normB = 0.0;
-        for ($i = 0; $i < $n; $i++) {
-            $dot += $a[$i] * $b[$i];
-            $normA += $a[$i] * $a[$i];
-            $normB += $b[$i] * $b[$i];
-        }
-
-        if ($normA <= 0.0 || $normB <= 0.0) {
-            return 0.0;
-        }
-
-        return $dot / (sqrt($normA) * sqrt($normB));
     }
 }
