@@ -10,9 +10,9 @@ final class Bm25Retriever
 {
     private BM25 $bm25;
 
-    public function __construct(?BM25 $bm25 = null)
+    public function __construct(?BM25 $bm25 = null, bool $normalizeEnglish = false)
     {
-        $this->bm25 = $bm25 ?? new BM25();
+        $this->bm25 = $bm25 ?? new BM25(normalizeEnglish: $normalizeEnglish);
     }
 
     /** @param array<int, string> $documents */

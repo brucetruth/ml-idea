@@ -6,10 +6,13 @@ namespace ML\IDEA\NLP\Pos;
 
 use ML\IDEA\Exceptions\InvalidArgumentException;
 use ML\IDEA\NLP\Contracts\TrainablePosTaggerInterface;
+use ML\IDEA\NLP\Support\PerceptronModelPersistence;
 use ML\IDEA\NLP\Text\Token;
 
 final class PerceptronPosTagger implements TrainablePosTaggerInterface
 {
+    use PerceptronModelPersistence;
+
     /** @var array<string, array<string, float>> */
     private array $weights = [];
     /** @var array<int, string> */

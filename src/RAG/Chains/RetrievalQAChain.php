@@ -75,22 +75,9 @@ final class RetrievalQAChain
      */
     public function ask(string $question, int $k = 5, array $filters = [], array $llmOptions = []): array
     {
-        $expandedQueries = $this->queryExpander->expand($question);
-
-        $merged = [];
-        foreach ($expandedQueries as $q) {
-            $hits = $this->retriever->retrieve($q, $k, $filters);
-            foreach ($hits as $hit) {
-                $id = $hit['id'];
-                if (!isset($merged[$id]) || $hit['score'] > $merged[$id]['score']) {
-                    $merged[$id] = $hit;
-                }
-            }
-        }
-
-        $contexts = array_values($merged);
-        $contexts = $this->reranker->rerank($question, $contexts);
-        $contexts = array_slice($contexts, 0, max(1, $k));
+        $retrieval = $this->retrieveWithExpansion($question, $k, $filters);
+        $contexts = $retrieval['contexts'];
+        $expandedQueries = $retrieval['expandedQueries'];
 
         $prompt = PromptTemplate::retrievalQa($question, $contexts);
         $answer = $this->llm->generate($prompt, $llmOptions);
@@ -99,6 +86,7 @@ final class RetrievalQAChain
         $citations = array_map(static fn (array $c): string => $c['id'], $contexts);
         $diagnostics = [
             'query_count' => count($expandedQueries),
+            'expanded_queries' => $expandedQueries,
             'avg_score' => $contexts === [] ? 0.0 : (array_sum(array_map(static fn (array $c): float => (float) $c['score'], $contexts)) / count($contexts)),
             'scores' => array_map(static fn (array $c): float => (float) $c['score'], $contexts),
         ];
@@ -117,9 +105,7 @@ final class RetrievalQAChain
      */
     public function askStream(string $question, int $k = 5, array $filters = [], array $llmOptions = []): iterable
     {
-        $contexts = $this->retriever->retrieve($question, $k, $filters);
-        $contexts = $this->reranker->rerank($question, $contexts);
-        $contexts = array_slice($contexts, 0, max(1, $k));
+        $contexts = $this->retrieveWithExpansion($question, $k, $filters)['contexts'];
 
         $prompt = PromptTemplate::retrievalQa($question, $contexts);
 
@@ -128,5 +114,37 @@ final class RetrievalQAChain
         }
 
         return [$this->llm->generate($prompt, $llmOptions)];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{
+     *     contexts: array<int, array{id: string, text: string, metadata: array<string, mixed>, score: float}>,
+     *     expandedQueries: array<int, string>
+     * }
+     */
+    private function retrieveWithExpansion(string $question, int $k, array $filters): array
+    {
+        $expandedQueries = $this->queryExpander->expand($question);
+
+        $merged = [];
+        foreach ($expandedQueries as $q) {
+            $hits = $this->retriever->retrieve($q, $k, $filters);
+            foreach ($hits as $hit) {
+                $id = $hit['id'];
+                if (!isset($merged[$id]) || $hit['score'] > $merged[$id]['score']) {
+                    $merged[$id] = $hit;
+                }
+            }
+        }
+
+        $contexts = array_values($merged);
+        $contexts = $this->reranker->rerank($question, $contexts);
+        $contexts = array_slice($contexts, 0, max(1, $k));
+
+        return [
+            'contexts' => $contexts,
+            'expandedQueries' => $expandedQueries,
+        ];
     }
 }

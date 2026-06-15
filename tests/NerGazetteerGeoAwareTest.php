@@ -27,6 +27,22 @@ final class NerGazetteerGeoAwareTest extends TestCase
         self::assertContains('CITY', array_map(static fn (Entity $e): string => $e->label, $entities));
     }
 
+    public function testGazetteerFallsBackToScanWhenPatternCountExceedsCap(): void
+    {
+        $gazetteer = [];
+        for ($i = 0; $i < 1001; $i++) {
+            $gazetteer['place_' . $i] = 'CITY';
+        }
+        $gazetteer['target city'] = 'CITY';
+
+        $r = new GazetteerEntityRecognizer($gazetteer);
+        $entities = $r->recognize('Travel to target city tomorrow.');
+
+        self::assertNotEmpty($entities);
+        self::assertSame('CITY', $entities[0]->label);
+        self::assertStringContainsString('target city', mb_strtolower($entities[0]->text));
+    }
+
     public function testSpanResolverPrefersLongerSpan(): void
     {
         $resolver = new SpanResolver();

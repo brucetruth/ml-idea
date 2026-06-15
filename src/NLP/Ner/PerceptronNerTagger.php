@@ -6,10 +6,13 @@ namespace ML\IDEA\NLP\Ner;
 
 use ML\IDEA\Exceptions\InvalidArgumentException;
 use ML\IDEA\NLP\Contracts\TrainableNerTaggerInterface;
+use ML\IDEA\NLP\Support\PerceptronModelPersistence;
 use ML\IDEA\NLP\Tokenize\UnicodeWordTokenizer;
 
 final class PerceptronNerTagger implements TrainableNerTaggerInterface
 {
+    use PerceptronModelPersistence;
+
     /** @var array<string, array<string, float>> */
     private array $weights = [];
     /** @var array<int, string> */

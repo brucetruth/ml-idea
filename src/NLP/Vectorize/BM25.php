@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ML\IDEA\NLP\Vectorize;
 
+use ML\IDEA\NLP\Normalize\EnglishNormalizer;
 use ML\IDEA\NLP\Tokenize\UnicodeWordTokenizer;
 
 final class BM25
@@ -18,8 +19,11 @@ final class BM25
     private array $docLen = [];
     private float $avgDocLen = 0.0;
 
-    public function __construct(private readonly float $k1 = 1.5, private readonly float $b = 0.75)
-    {
+    public function __construct(
+        private readonly float $k1 = 1.5,
+        private readonly float $b = 0.75,
+        private readonly bool $normalizeEnglish = false,
+    ) {
     }
 
     public function addDocuments(array $documents): void
@@ -27,6 +31,7 @@ final class BM25
         $tok = new UnicodeWordTokenizer();
         foreach ($documents as $doc) {
             $tokens = array_map(static fn ($t): string => $t->norm, $tok->tokenize((string) $doc));
+            $tokens = $this->normalizeTokens($tokens);
             $id = count($this->docs);
             $this->docs[$id] = $tokens;
             $this->rawDocs[$id] = (string) $doc;
@@ -61,6 +66,7 @@ final class BM25
     {
         $tok = new UnicodeWordTokenizer();
         $qTerms = array_map(static fn ($t): string => $t->norm, $tok->tokenize($query));
+        $qTerms = $this->normalizeTokens($qTerms);
         if ($qTerms === [] || $this->docs === []) {
             return [];
         }
@@ -100,5 +106,15 @@ final class BM25
             $rows[] = ['id' => (int) $id, 'score' => $score, 'text' => $this->rawDocs[(int) $id] ?? ''];
         }
         return $rows;
+    }
+
+    /** @param array<int, string> $tokens @return array<int, string> */
+    private function normalizeTokens(array $tokens): array
+    {
+        if (!$this->normalizeEnglish) {
+            return $tokens;
+        }
+
+        return EnglishNormalizer::normalizeTokens($tokens);
     }
 }

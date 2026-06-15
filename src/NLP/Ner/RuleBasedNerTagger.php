@@ -109,11 +109,17 @@ final class RuleBasedNerTagger implements NerTaggerInterface
         $entities = array_merge($entities, $gazetteerEntities);
 
         preg_match_all('/\b[\p{Lu}][\p{L}\-]+(?:\s+[\p{Lu}][\p{L}\-]+)*\b/u', $text, $m, PREG_OFFSET_CAPTURE);
+        $occupied = $this->occupiedRanges($entities);
         foreach ($m[0] as $hit) {
             /** @var array{0:string,1:int} $hit */
             [$raw, $start] = $hit;
+            $end = $start + strlen($raw);
+            if ($this->overlapsRange($occupied, $start, $end)) {
+                continue;
+            }
+
             $label = $this->gazetteer[$this->norm($raw)] ?? 'PROPER_NOUN';
-            $entities[] = new Entity($raw, $label, $start, $start + strlen($raw), 0.65);
+            $entities[] = new Entity($raw, $label, $start, $end, $label === 'PROPER_NOUN' ? 0.65 : 0.72);
         }
 
         $resolved = (new SpanResolver())->resolve($entities, allowNesting: true);
@@ -196,5 +202,28 @@ final class RuleBasedNerTagger implements NerTaggerInterface
     private function norm(string $value): string
     {
         return trim((string) preg_replace('/\s+/u', ' ', mb_strtolower(UnicodeNormalizer::stripAccents($value))));
+    }
+
+    /** @param array<int, Entity> $entities @return array<int, array{0:int,1:int}> */
+    private function occupiedRanges(array $entities): array
+    {
+        $ranges = [];
+        foreach ($entities as $entity) {
+            $ranges[] = [$entity->start, $entity->end];
+        }
+
+        return $ranges;
+    }
+
+    /** @param array<int, array{0:int,1:int}> $ranges */
+    private function overlapsRange(array $ranges, int $start, int $end): bool
+    {
+        foreach ($ranges as [$s, $e]) {
+            if ($start < $e && $end > $s) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

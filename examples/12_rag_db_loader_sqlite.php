@@ -10,7 +10,7 @@ use ML\IDEA\RAG\Embeddings\HashEmbedder;
 use ML\IDEA\RAG\LLM\LlmClientFactory;
 use ML\IDEA\RAG\LLM\OpenAILlmClient;
 use ML\IDEA\RAG\Loaders\PdoLoader;
-use ML\IDEA\RAG\QueryExpansion\SimpleQueryExpander;
+use ML\IDEA\RAG\QueryExpansion\WordNetQueryExpander;
 use ML\IDEA\RAG\Rerankers\LexicalOverlapReranker;
 use ML\IDEA\RAG\Splitters\RecursiveTextSplitter;
 use ML\IDEA\RAG\VectorStore\InMemoryVectorStore;
@@ -60,12 +60,13 @@ $chain = new RetrievalQAChain(
     new RecursiveTextSplitter(120, 20),
     $llm,
     new LexicalOverlapReranker(),
-    new SimpleQueryExpander(2),
+    new WordNetQueryExpander(maxQueries: 5),
 );
 
 $chain->index($loader->load());
 $result = $chain->ask('How do we save and load models?', 2);
 
-echo "Example 12 - RAG DB Loader (SQLite/PDO)\n";
+echo "Example 12 - RAG DB Loader (SQLite/PDO) + WordNet expansion\n";
 echo 'Answer: ' . $result['answer'] . PHP_EOL;
 echo 'Citations: ' . json_encode($result['citations'], JSON_THROW_ON_ERROR) . PHP_EOL;
+echo 'Expanded queries: ' . json_encode($result['diagnostics']['expanded_queries'] ?? [], JSON_THROW_ON_ERROR) . PHP_EOL;

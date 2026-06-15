@@ -4,14 +4,24 @@ declare(strict_types=1);
 
 namespace ML\IDEA\NLP\Rag;
 
+use ML\IDEA\NLP\Contracts\TokenizerInterface;
+use ML\IDEA\NLP\Tokenize\UnicodeWordTokenizer;
+
 final class Chunker
 {
+    public function __construct(private readonly TokenizerInterface $tokenizer = new UnicodeWordTokenizer())
+    {
+    }
+
     /**
      * @return array<int, string>
      */
     public function chunkByWords(string $text, int $chunkSize = 120, int $overlap = 20): array
     {
-        $words = preg_split('/\s+/u', trim($text)) ?: [];
+        $words = array_map(
+            static fn ($token) => $token->text,
+            $this->tokenizer->tokenize(trim($text)),
+        );
         if ($words === []) {
             return [];
         }

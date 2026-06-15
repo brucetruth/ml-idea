@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ML\IDEA\NLP\Privacy;
 
+use ML\IDEA\NLP\Support\UnicodeStringDistance;
+
 final class SensitiveTermFilter
 {
     /** @param array<int, string> $terms */
@@ -29,7 +31,7 @@ final class SensitiveTermFilter
                     if ($word === '') {
                         continue;
                     }
-                    if (levenshtein($needle, $word) <= $this->maxDistance) {
+                    if (UnicodeStringDistance::levenshtein($needle, $word) <= $this->maxDistance) {
                         $found[] = $term;
                         break;
                     }

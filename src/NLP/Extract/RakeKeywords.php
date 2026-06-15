@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ML\IDEA\NLP\Extract;
 
+use ML\IDEA\NLP\Extract\Stopwords;
 use ML\IDEA\NLP\Tokenize\UnicodeWordTokenizer;
 
 final class RakeKeywords
@@ -11,10 +12,11 @@ final class RakeKeywords
     /** @var array<string, bool> */
     private array $stop;
 
-    /** @param array<int, string> $stopwords */
-    public function __construct(array $stopwords = ['the', 'a', 'an', 'and', 'or', 'to', 'of', 'in', 'on', 'for', 'is', 'are', 'was', 'were'])
+    /** @param array<int, string>|null $stopwords */
+    public function __construct(?array $stopwords = null, private readonly string $language = 'en')
     {
-        $this->stop = array_fill_keys(array_map('mb_strtolower', $stopwords), true);
+        $words = $stopwords ?? Stopwords::forLanguage($this->language);
+        $this->stop = array_fill_keys(array_map('mb_strtolower', $words), true);
     }
 
     /** @return array<int, array{keyword:string, score:float}> */

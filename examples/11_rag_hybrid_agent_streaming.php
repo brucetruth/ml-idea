@@ -10,7 +10,7 @@ use ML\IDEA\RAG\Contracts\LlmClientInterface;
 use ML\IDEA\RAG\Document;
 use ML\IDEA\RAG\Embeddings\HashEmbedder;
 use ML\IDEA\RAG\LLM\LlmClientFactory;
-use ML\IDEA\RAG\QueryExpansion\SimpleQueryExpander;
+use ML\IDEA\RAG\QueryExpansion\WordNetQueryExpander;
 use ML\IDEA\RAG\Rerankers\LexicalOverlapReranker;
 use ML\IDEA\RAG\Splitters\RecursiveTextSplitter;
 use ML\IDEA\RAG\Tools\RetrievalQaTool;
@@ -27,7 +27,7 @@ $chain = new RetrievalQAChain(
     new RecursiveTextSplitter(120, 20),
     $llm,
     new LexicalOverlapReranker(),
-    new SimpleQueryExpander(3),
+    new WordNetQueryExpander(maxQueries: 5),
 );
 
 $chain->index([
@@ -38,7 +38,8 @@ $chain->index([
 
 $result = $chain->ask('How does hybrid retrieval work?', 2);
 
-echo "Example 11 - Hybrid + Agent + Streaming\n";
+echo "Example 11 - Hybrid + Agent + Streaming (WordNet query expansion)\n";
+echo 'Expanded query count: ' . ($result['diagnostics']['query_count'] ?? 0) . PHP_EOL;
 echo 'Citations: ' . json_encode($result['citations'], JSON_THROW_ON_ERROR) . PHP_EOL;
 echo 'Diagnostics: ' . json_encode($result['diagnostics'], JSON_THROW_ON_ERROR) . PHP_EOL;
 echo 'Verification: ' . json_encode($result['verification'], JSON_THROW_ON_ERROR) . PHP_EOL;
