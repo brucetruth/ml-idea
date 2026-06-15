@@ -44,4 +44,37 @@ final class HybridTranslator implements TranslatorInterface
 
         return $out;
     }
+
+    /**
+     * Fraction of source-language words that changed during translation (0..1).
+     */
+    public function translationCoverage(string $source, string $translated): float
+    {
+        $sourceWords = $this->extractWords($source);
+        if ($sourceWords === []) {
+            return 0.0;
+        }
+
+        $translatedWords = $this->extractWords($translated);
+        $changed = 0;
+        foreach ($sourceWords as $i => $word) {
+            $candidate = $translatedWords[$i] ?? $word;
+            if (mb_strtolower($word) !== mb_strtolower($candidate)) {
+                $changed++;
+            }
+        }
+
+        return $changed / count($sourceWords);
+    }
+
+    /** @return array<int, string> */
+    private function extractWords(string $text): array
+    {
+        $parts = preg_split('/(\P{L}+)/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return array_values(array_filter(
+            $parts,
+            static fn (string $part): bool => preg_match('/^\p{L}+$/u', $part) === 1,
+        ));
+    }
 }

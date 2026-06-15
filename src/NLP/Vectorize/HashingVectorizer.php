@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace ML\IDEA\NLP\Vectorize;
 
+use ML\IDEA\Data\SparseVector;
 use ML\IDEA\NLP\Contracts\VectorizerInterface;
 use ML\IDEA\NLP\Tokenize\UnicodeWordTokenizer;
 
 final class HashingVectorizer implements VectorizerInterface
 {
-    public function __construct(private readonly int $dimensions = 1024)
-    {
+    public function __construct(
+        private readonly int $dimensions = 1024,
+        private readonly bool $outputSparse = false,
+    ) {
     }
 
     public function fit(array $documents): void
@@ -45,9 +48,39 @@ final class HashingVectorizer implements VectorizerInterface
                 $row[$i] = $v / $norm;
             }
 
-            $out[] = $row;
+            $out[] = $this->outputSparse ? SparseVector::fromDense($row) : $row;
         }
 
         return $out;
+    }
+
+    /**
+     * @param array<int, string> $documents
+     * @return array<int, array<int, float>>
+     */
+    public function fitTransform(array $documents): array
+    {
+        $this->fit($documents);
+
+        return $this->transform($documents);
+    }
+
+    public function outputsSparse(): bool
+    {
+        return $this->outputSparse;
+    }
+
+    public function dimensions(): int
+    {
+        return $this->dimensions;
+    }
+
+    /**
+     * @param array<int, array<int, float>> $matrix
+     * @return array<int, array<int, float>>
+     */
+    public function densify(array $matrix): array
+    {
+        return SparseVector::densifyMatrix($matrix, $this->dimensions);
     }
 }

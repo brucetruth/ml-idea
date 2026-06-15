@@ -17,6 +17,8 @@ final class EnglishBembaTranslator implements TranslatorInterface
     /** @param array<string, array<int, string>>|null $map */
     public function __construct(?array $map = null, ?DictionaryDatasetService $dictionary = null)
     {
+        $dictionary ??= new DictionaryDatasetService();
+
         if ($map !== null) {
             $word = [];
             $phrase = [];
@@ -32,16 +34,38 @@ final class EnglishBembaTranslator implements TranslatorInterface
                 }
             }
         } else {
-            $dictionary ??= new DictionaryDatasetService();
             $word = $dictionary->englishToBembaWordMap();
             $phrase = $dictionary->englishToBembaPhraseMap(2, 5);
         }
 
         $this->wordTranslator = new DictionaryTranslator($word);
+        $phrase = array_merge(
+            $phrase,
+            BembaPhraseComposer::compose($word, BembaPhraseComposer::defaultEnglishTemplates()),
+            $dictionary->englishToBembaSupplementalPhrases(),
+        );
+
         $this->pipeline = new HybridTranslator(
             new PhraseTableTranslator($phrase, 2, 5),
-            $this->wordTranslator
+            $this->wordTranslator,
+            self::reorderRules(),
         );
+    }
+
+    public function translationCoverage(string $text): float
+    {
+        $draft = $this->pipeline->translate($text, 'en', 'bem');
+
+        return $this->pipeline->translationCoverage($text, $draft);
+    }
+
+    /** @return array<string, string> */
+    private static function reorderRules(): array
+    {
+        return [
+            '/\bhow do i\b/ui' => 'nga kuti na',
+            '/\bhow to\b/ui' => 'nga kuti',
+        ];
     }
 
     public function translateWord(string $english): string
