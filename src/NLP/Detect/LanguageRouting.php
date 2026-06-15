@@ -11,9 +11,14 @@ final class LanguageRouting
      */
     public static function forLanguage(string $language): array
     {
-        $lang = trim(mb_strtolower($language));
+        $lang = LanguageRegistry::resolve(trim(mb_strtolower($language)));
 
         return match ($lang) {
+            'en', 'eng' => [
+                'tokenizer' => 'unicode_word',
+                'nerPreset' => 'default',
+                'translatorDirection' => 'en->bem',
+            ],
             'bem' => [
                 'tokenizer' => 'unicode_word',
                 'nerPreset' => 'zambia-bemba',
@@ -22,22 +27,22 @@ final class LanguageRouting
             'nya' => [
                 'tokenizer' => 'unicode_word',
                 'nerPreset' => 'zambia-nyanja',
-                'translatorDirection' => 'nya->en',
+                'translatorDirection' => 'none',
             ],
             'toi' => [
                 'tokenizer' => 'unicode_word',
                 'nerPreset' => 'zambia-tonga',
-                'translatorDirection' => 'toi->en',
+                'translatorDirection' => 'none',
             ],
             'loz' => [
                 'tokenizer' => 'unicode_word',
                 'nerPreset' => 'zambia-lozi',
-                'translatorDirection' => 'loz->en',
+                'translatorDirection' => 'none',
             ],
             default => [
                 'tokenizer' => 'unicode_word',
                 'nerPreset' => 'default',
-                'translatorDirection' => 'en->bem',
+                'translatorDirection' => 'none',
             ],
         };
     }

@@ -4,13 +4,24 @@ declare(strict_types=1);
 
 namespace ML\IDEA\NLP\Text;
 
+use ML\IDEA\NLP\Contracts\NerTaggerInterface;
+use ML\IDEA\NLP\Contracts\PosTaggerInterface;
+use ML\IDEA\NLP\Contracts\TokenizerInterface;
+use ML\IDEA\NLP\Contracts\TranslatorInterface;
 use ML\IDEA\NLP\Detect\LanguageDetector;
+use ML\IDEA\NLP\Doc\Doc;
 use ML\IDEA\NLP\Extract\RakeKeywords;
+use ML\IDEA\NLP\Extract\Stopwords;
 use ML\IDEA\NLP\Lexicon\SemanticExplorer;
+use ML\IDEA\NLP\Language;
+use ML\IDEA\NLP\Nlp;
 use ML\IDEA\NLP\Ner\Entity;
 use ML\IDEA\NLP\Ner\RuleBasedNerTagger;
+use ML\IDEA\NLP\Pos\RuleBasedPosTagger;
 use ML\IDEA\NLP\Normalize\UnicodeNormalizer;
 use ML\IDEA\NLP\Privacy\PIIRedactor;
+use ML\IDEA\NLP\Privacy\SensitiveTermFilter;
+use ML\IDEA\NLP\Sentiment\SentimentAnalyzer;
 use ML\IDEA\NLP\Tokenize\SentenceTokenizer;
 use ML\IDEA\NLP\Tokenize\UnicodeWordTokenizer;
 
@@ -98,9 +109,17 @@ final readonly class Text
     }
 
     /** @return array<int, string> */
-    public function words(): array
+    public function words(?TokenizerInterface $tokenizer = null): array
     {
-        return array_map(static fn (Token $t): string => $t->text, (new UnicodeWordTokenizer())->tokenize($this->value));
+        $tok = $tokenizer ?? new UnicodeWordTokenizer();
+
+        return array_map(static fn (Token $t): string => $t->text, $tok->tokenize($this->value));
+    }
+
+    /** @return array<int, string> */
+    public function wordsWithoutStopwords(string $language = 'en', ?TokenizerInterface $tokenizer = null): array
+    {
+        return Stopwords::filter($this->words($tokenizer), $language);
     }
 
     /** @return array<int, string> */
@@ -119,9 +138,9 @@ final readonly class Text
     }
 
     /** @return array<int, Token> */
-    public function toTokens(): array
+    public function toTokens(?TokenizerInterface $tokenizer = null): array
     {
-        return (new UnicodeWordTokenizer())->tokenize($this->value);
+        return ($tokenizer ?? new UnicodeWordTokenizer())->tokenize($this->value);
     }
 
     public function maskPII(): self
@@ -129,15 +148,61 @@ final readonly class Text
         return new self((new PIIRedactor())->redact($this->value));
     }
 
+    /**
+     * @param array<int, string> $terms
+     */
+    public function maskSensitiveTerms(array $terms, bool $fuzzy = false, int $maxDistance = 1, string $mask = '[SENSITIVE]'): self
+    {
+        return new self((new SensitiveTermFilter($terms, $fuzzy, $maxDistance))->redact($this->value, $mask));
+    }
+
+    /** @return array<int, string> */
+    public function findSensitiveTerms(array $terms, bool $fuzzy = false, int $maxDistance = 1): array
+    {
+        return (new SensitiveTermFilter($terms, $fuzzy, $maxDistance))->find($this->value);
+    }
+
     public function language(): string
     {
         return (new LanguageDetector())->detect($this->value);
     }
 
-    /** @return array{language:string, score:float} */
+    /** @return array{language:string, score:float, confidence:float} */
     public function languageWithScore(): array
     {
         return (new LanguageDetector())->detectWithScore($this->value);
+    }
+
+    /** @return array<int, array{language:string, score:float, confidence:float}> */
+    public function languageTop(int $limit = 3, float $minConfidence = 0.05): array
+    {
+        return (new LanguageDetector())->detectTop($this->value, $limit, $minConfidence);
+    }
+
+    /** @return array<int, array{text:string, start:int, end:int, language:string, score:float, confidence:float}> */
+    public function languageSegments(): array
+    {
+        return (new LanguageDetector())->detectSegments($this->value);
+    }
+
+    /**
+     * @return array{
+     *     primary:string,
+     *     confidence:float,
+     *     multilingual:bool,
+     *     languages:array<int, array{language:string, confidence:float, proportion:float}>
+     * }
+     */
+    public function languageMixed(float $secondaryThreshold = 0.15): array
+    {
+        return (new LanguageDetector())->detectMixed($this->value, $secondaryThreshold);
+    }
+
+    public function toDoc(?Language $nlp = null): Doc
+    {
+        $language = $nlp ?? Nlp::blank($this->language());
+
+        return $language->process($this->value);
     }
 
     public function initials(int $max = 6): string
@@ -163,9 +228,49 @@ final readonly class Text
     }
 
     /** @return array<int, Entity> */
-    public function entities(?RuleBasedNerTagger $tagger = null): array
+    public function entities(NerTaggerInterface|RuleBasedNerTagger|null $tagger = null, ?NlpPipeline $pipeline = null): array
     {
-        return ($tagger ?? new RuleBasedNerTagger())->extract($this->value);
+        $resolved = $tagger ?? $pipeline?->nerTagger() ?? new RuleBasedNerTagger();
+
+        return $resolved->extract($this->value);
+    }
+
+    /** @return array<int, array{token: Token, pos: string}> */
+    public function pos(?PosTaggerInterface $tagger = null, ?NlpPipeline $pipeline = null): array
+    {
+        $resolved = $tagger ?? $pipeline?->posTagger() ?? new RuleBasedPosTagger('en');
+        $tokens = $this->toTokens($pipeline?->tokenizer());
+
+        return $resolved->tag($tokens);
+    }
+
+    public function translate(?TranslatorInterface $translator = null, ?NlpPipeline $pipeline = null): string
+    {
+        $resolved = $translator ?? $pipeline?->translator();
+        if ($resolved === null) {
+            throw new \RuntimeException('No translator configured. Pass a TranslatorInterface or use NlpPipeline::forLanguage().');
+        }
+
+        return $resolved->translate($this->value);
+    }
+
+    /** @return array{label:string, negative:float, positive:float, neutral:float} */
+    public function sentiment(?SentimentAnalyzer $analyzer = null, ?NlpPipeline $pipeline = null): array
+    {
+        $resolved = $analyzer ?? $pipeline?->sentimentAnalyzer() ?? new SentimentAnalyzer();
+        $proba = $resolved->predictProba($this->value);
+
+        return [
+            'label' => $resolved->predict($this->value),
+            'negative' => $proba['negative'],
+            'positive' => $proba['positive'],
+            'neutral' => $proba['neutral'],
+        ];
+    }
+
+    public function pipelineForDetectedLanguage(): NlpPipeline
+    {
+        return NlpPipeline::fromDetectedText($this->value);
     }
 
     /**
@@ -176,9 +281,10 @@ final readonly class Text
      *   definitionNeighbors:array<int,string>
      * }
      */
-    public function semantics(?SemanticExplorer $explorer = null): array
+    public function semantics(?SemanticExplorer $explorer = null, ?NlpPipeline $pipeline = null): array
     {
         $word = trim(mb_strtolower($this->value));
-        return ($explorer ?? new SemanticExplorer())->wordInsights($word);
+
+        return ($explorer ?? $pipeline?->semanticExplorer() ?? new SemanticExplorer())->wordInsights($word);
     }
 }
