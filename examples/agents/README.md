@@ -114,3 +114,13 @@ $llm = new OpenAILlmClient('YOUR_OPENAI_API_KEY', 'gpt-4o-mini');
 
 The same direct-constructor pattern also applies to `AzureOpenAILlmClient` and `OllamaLlmClient`.
 
+## Observability (tracing + audit logging)
+
+- `17_agent_tracing_demo.php` — `RecordingAgentTracer` spans (`agent.run`, `agent.tool_call`, …)
+- `18_agent_run_logger_demo.php` — `JsonlAgentRunLogger` appends one JSON line per completed run
+- `19_idempotency_demo.php` — prevent double-refund on retry with `IdempotentToolInterface`
+- `20_llm_memory_demo.php` — episodic summarizers (truncating vs LLM) in isolation
+- `23_agent_diary_and_memory_demo.php` — **diary** (`AgentStateStore`) + **sticky notes** (`AgentMemoryStore`) together
+
+Laravel: set `MLIDEA_LOGGING_DRIVER=jsonl` (default path `storage/logs/mlidea-agent-runs.jsonl`).
+

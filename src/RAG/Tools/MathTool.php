@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace ML\IDEA\RAG\Tools;
 
+use ML\IDEA\RAG\Contracts\ParallelInvokableToolInterface;
 use ML\IDEA\RAG\Contracts\RetryableToolInterface;
 use ML\IDEA\RAG\Contracts\ToolInterface;
 use ML\IDEA\RAG\Contracts\ToolSchemaInterface;
 use ML\IDEA\RAG\Math\ExpressionEvaluator;
 
-final class MathTool implements ToolInterface, ToolSchemaInterface, RetryableToolInterface
+final class MathTool implements ToolInterface, ToolSchemaInterface, RetryableToolInterface, ParallelInvokableToolInterface
 {
     public function __construct(private readonly ExpressionEvaluator $evaluator = new ExpressionEvaluator())
     {
@@ -56,13 +57,20 @@ final class MathTool implements ToolInterface, ToolSchemaInterface, RetryableToo
 
     public function invoke(array $input): string
     {
+        return self::invokeParallel($input);
+    }
+
+    /** @param array<string, mixed> $input */
+    public static function invokeParallel(array $input): string
+    {
         $expr = isset($input['expression']) ? (string) $input['expression'] : '';
         if (trim($expr) === '') {
             return 'MathTool: missing expression.';
         }
 
         try {
-            $result = $this->evaluator->evaluate($expr);
+            $result = (new ExpressionEvaluator())->evaluate($expr);
+
             return json_encode($result, JSON_THROW_ON_ERROR);
         } catch (\Throwable $e) {
             return 'MathTool error: ' . $e->getMessage();

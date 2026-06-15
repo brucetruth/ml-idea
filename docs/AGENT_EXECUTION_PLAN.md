@@ -28,6 +28,43 @@ Position **ml-idea** as the production PHP runtime for agentic AI: typed tool ro
 | Ollama native tool calling + Anthropic routing model | Shipped |
 | Optional auto-persist via `AgentStateStoreInterface` on agent constructor | Shipped |
 
+### v1.9 — Safety & memory
+
+| Deliverable | Status |
+|---|---|
+| `IdempotentToolInterface` + `ToolIdempotencyStoreInterface` | Shipped |
+| `FileToolIdempotencyStore` / `InMemoryToolIdempotencyStore` | Shipped |
+| `AgentMemoryStoreInterface` episodic recall | Shipped |
+| `FileAgentMemoryStore` / `InMemoryAgentMemoryStore` | Shipped |
+| `ToolCallBatchPlanner` — order multi-tool batches low→high risk | Shipped |
+| Laravel config: `idempotency`, `memory`, `order_tool_calls_by_risk` | Shipped |
+| `refund_order` implements idempotency key | Shipped |
+
+### v2.0 — Scale & resilience (current)
+
+| Deliverable | Status |
+|---|---|
+| `EpisodicMemorySummarizerInterface` + `TruncatingEpisodicMemorySummarizer` | Shipped |
+| `LlmEpisodicMemorySummarizer` — LLM-backed session recall | Shipped |
+| `ToolCircuitBreaker` wired into `ToolExecutor` | Shipped |
+| `ParallelInvokableToolInterface` + `ParallelToolCallRunner` (ext-parallel) | Shipped |
+| `MathTool::invokeParallel()` for worker-safe execution | Shipped |
+| Laravel config: `memory.summarizer`, `circuit_breaker`, `parallel_tools` | Shipped |
+| Demos: `20_llm_memory_demo.php`, `21_circuit_breaker_demo.php`, `22_parallel_tools_demo.php` | Shipped |
+
+### v1.8 — Production hooks
+
+| Deliverable | Status |
+|---|---|
+| `CallbackAgentRunLogger`, `Psr3AgentRunLogger`, `MultiAgentRunLogger` | Shipped |
+| Laravel events: `AgentRunCompleted`, `AgentAwaitingApproval` | Shipped |
+| `docs/AGENT_COOKBOOK.md` | Shipped |
+| Laravel budget config (`max_tokens`, `max_estimated_cost`, `max_runtime_ms`) | Shipped |
+| SSE streaming controller example | Shipped |
+| AI-admin eval fixture + `run_agent_eval.php` | Shipped |
+| Logging drivers: `psr3`, `multi` | Shipped |
+| `MlIdeaAgent::resumeWithApproval()` with event dispatch | Shipped |
+
 ### v1.7 — Scale & ecosystem
 
 | Deliverable | Status |
@@ -36,8 +73,8 @@ Position **ml-idea** as the production PHP runtime for agentic AI: typed tool ro
 | File session store (`FileAgentStateStore`, default) | Shipped |
 | Redis session store with auto file fallback (`AgentStateStoreFactory`) | Shipped |
 | Multi-agent handoffs (`AgentHandoffRegistry`, `handoff` decision type) | Shipped |
-| OpenTelemetry spans for iterations and tool calls | Planned |
-| Laravel bridge package | Planned |
+| OpenTelemetry spans for iterations and tool calls | Shipped |
+| Laravel bridge package | Shipped |
 
 ---
 
@@ -46,7 +83,7 @@ Position **ml-idea** as the production PHP runtime for agentic AI: typed tool ro
 ### Deliverables
 
 - `AgentContextManager` with configurable routing window and tool message compression.
-- Future: episodic memory store, semantic recall, LLM summarization hook.
+- Future: episodic memory store, semantic recall, LLM summarization hook. *(v1.9: file/memory episodic store + context injection shipped; v2.0: LLM summarizer driver shipped)*
 
 ### Acceptance criteria
 
@@ -72,9 +109,10 @@ Position **ml-idea** as the production PHP runtime for agentic AI: typed tool ro
 
 ### Future
 
-- Parallel independent `tool_calls`
+- True parallel `tool_calls` (requires optional async runtime)
 - Circuit breaker per tool
 - Fallback tool chains
+- LLM-powered episodic summarization hook
 
 ---
 
@@ -126,13 +164,35 @@ Position **ml-idea** as the production PHP runtime for agentic AI: typed tool ro
 
 ---
 
+## 9) Laravel bridge (v1.7)
+
+### Deliverables
+
+- `brucetruth/ml-idea-laravel` package under `packages/laravel`
+- Auto-discovered `MlIdeaServiceProvider`
+- Publishable `config/mlidea.php` (model, tools, store, tracing)
+- `ToolRoutingAgentManager` + `MlIdeaAgent` facade
+- `php artisan mlidea:agent-eval {fixture}`
+
+### Acceptance criteria
+
+- Laravel apps configure agents via env + config without manual wiring.
+- Session store defaults to `storage/app/mlidea/agent-sessions`.
+- Eval command exits non-zero when pass rate falls below threshold.
+
+---
+
 ## 7) Observability (v1.7)
 
 ### Deliverables
 
 - PSR-3 structured logging for agent runs
-- OpenTelemetry span per iteration/tool call
-- `AgentRunRepository` for audit trails
+- `AgentTracerInterface` + `RecordingAgentTracer` + optional `OpenTelemetryAgentTracer`
+- Spans: `agent.run`, `agent.iteration`, `agent.tool_call`, `agent.handoff`
+- `telemetry` block on agent responses (`trace_id`, `span_id`)
+- `AgentRunRepository` for audit trails (future)
+
+Shipped in v1.7+: `AgentRunLoggerInterface`, `JsonlAgentRunLogger`, `DatabaseAgentRunLogger` (Laravel), config drivers `noop|jsonl|database`.
 
 ### Acceptance criteria
 
