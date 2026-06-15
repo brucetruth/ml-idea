@@ -3,6 +3,8 @@ composer.lock
 .phpunit.cache/test-results
 /.idea
 *.cache
+.DS_Store
+examples/artifacts/**/*.sqlite
 *.json
 !src/datasets/**/*.json
 !src/Dataset/**/*.json

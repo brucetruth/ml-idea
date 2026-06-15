@@ -1,0 +1,29 @@
+[
+  {
+    "name": "math_single_tool",
+    "prompt": "calculate 10+5",
+    "expect": {
+      "stop_reason": "final",
+      "tool_names": ["math"],
+      "answer_contains": "15"
+    }
+  },
+  {
+    "name": "weather_clarify",
+    "prompt": "what is the weather there",
+    "expect": {
+      "stop_reason": "clarify",
+      "max_tool_calls": 0,
+      "answer_contains": "latitude"
+    }
+  },
+  {
+    "name": "multi_intent_tools",
+    "prompt": "what is 2+2 and weather lat -15.3 lon 28.3",
+    "expect": {
+      "stop_reason": "final",
+      "min_tool_calls": 2,
+      "tool_names": ["math", "weather"]
+    }
+  }
+]

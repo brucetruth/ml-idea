@@ -1,0 +1,37 @@
+[
+  {
+    "name": "list_users",
+    "prompt": "List all users",
+    "expect": {
+      "stop_reason": "final",
+      "tool_names": ["list_users"]
+    }
+  },
+  {
+    "name": "get_user_by_id",
+    "prompt": "Who is user #2?",
+    "expect": {
+      "stop_reason": "final",
+      "tool_names": ["get_user"],
+      "answer_contains": "Bob"
+    }
+  },
+  {
+    "name": "autonomous_support_triage",
+    "prompt": "AUTONOMOUS SUPPORT TICKET #501\n- user_id=2\n- order_id=101\nTriage without human approval: lookup user, add note, tag order, set ticket pending.",
+    "expect": {
+      "stop_reason": "final",
+      "min_tool_calls": 5,
+      "answer_contains": "triaged"
+    }
+  },
+  {
+    "name": "refund_deny_shipped",
+    "prompt": "NEW REFUND REQUEST #99 (status: pending)\n- customer user_id=2\n- order_id=102\n- customer reason: arrived late\nReview and decide.",
+    "expect": {
+      "stop_reason": "final",
+      "answer_contains": "DENY",
+      "max_tool_calls": 3
+    }
+  }
+]
