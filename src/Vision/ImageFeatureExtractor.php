@@ -74,6 +74,64 @@ final class ImageFeatureExtractor
     }
 
     /**
+     * Full RGB matrix (row-major) for spatial forensics features.
+     *
+     * @return array<int, array<int, array{0:float,1:float,2:float}>>
+     */
+    public static function rgbMatrixFromImageFile(string $path, int $maxSide = 128): array
+    {
+        if (!is_file($path)) {
+            throw new InvalidArgumentException(sprintf('Image file not found: %s', $path));
+        }
+
+        if (!function_exists('imagecreatefromstring') || !function_exists('imagecolorat')) {
+            throw new InvalidArgumentException('GD extension is required for rgbMatrixFromImageFile().');
+        }
+
+        $raw = file_get_contents($path);
+        if ($raw === false) {
+            throw new InvalidArgumentException(sprintf('Unable to read image file: %s', $path));
+        }
+
+        $img = @imagecreatefromstring($raw);
+        if ($img === false) {
+            throw new InvalidArgumentException(sprintf('Unsupported or invalid image: %s', $path));
+        }
+
+        $w = imagesx($img);
+        $h = imagesy($img);
+        if ($maxSide > 0 && ($w > $maxSide || $h > $maxSide)) {
+            $scale = min($maxSide / max(1, $w), $maxSide / max(1, $h));
+            $nw = max(1, (int) round($w * $scale));
+            $nh = max(1, (int) round($h * $scale));
+            $resized = imagecreatetruecolor($nw, $nh);
+            imagecopyresampled($resized, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            imagedestroy($img);
+            $img = $resized;
+            $w = $nw;
+            $h = $nh;
+        }
+
+        $matrix = [];
+        for ($y = 0; $y < $h; $y++) {
+            $row = [];
+            for ($x = 0; $x < $w; $x++) {
+                $rgb = imagecolorat($img, $x, $y);
+                $row[] = [
+                    (float) (($rgb >> 16) & 0xFF),
+                    (float) (($rgb >> 8) & 0xFF),
+                    (float) ($rgb & 0xFF),
+                ];
+            }
+            $matrix[] = $row;
+        }
+
+        imagedestroy($img);
+
+        return $matrix;
+    }
+
+    /**
      * @param array<int, array{0:float,1:float,2:float}> $flat
      * @return array<int, array{0:float,1:float,2:float}>
      */
