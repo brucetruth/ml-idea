@@ -32,17 +32,42 @@ final class DbQueryTool implements ToolInterface, ToolSchemaInterface
 
     public function description(): string
     {
-        return 'Executes parameterized SQL allowed table_names include ['.json_encode($this->allowedTables).'], user might misspell table names, so understand user question and match with the required tables, tables access policy is currently: '.$this->readOnly.' you are allowed to pre-run other queries to understand table structures. Input: {"sql":"SELECT ... WHERE id = :id", "params":{"id":1}}';
+        return 'Run read-only SQL against allowed tables [' . json_encode($this->allowedTables) . ']. '
+            . 'Send exactly one statement per call using {"sql":"SELECT ...", "params":{...}}. '
+            . 'For multiple lookups (schema discovery, follow-up counts, etc.), either call this tool once per statement '
+            . 'or pass {"queries":[{"sql":"SELECT ...","params":{}}, {"sql":"SELECT ...","params":{}}]}. '
+            . 'A trailing semicolon on a single statement is fine. '
+            . 'Do not batch write queries. Read-only mode: ' . ($this->readOnly ? 'true' : 'false') . '.';
     }
 
     public function inputSchema(): array
     {
         return [
             'type' => 'object',
-            'required' => ['sql'],
             'properties' => [
-                'sql' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 10000],
-                'params' => ['type' => 'object'],
+                'sql' => [
+                    'type' => 'string',
+                    'minLength' => 1,
+                    'maxLength' => 10000,
+                    'description' => 'One SQL statement. Optional trailing semicolon allowed.',
+                ],
+                'params' => [
+                    'type' => 'object',
+                    'description' => 'Bound parameters for sql.',
+                ],
+                'queries' => [
+                    'type' => 'array',
+                    'description' => 'Preferred batch form: one object per statement, each with its own sql and optional params.',
+                    'items' => [
+                        'type' => 'object',
+                        'required' => ['sql'],
+                        'properties' => [
+                            'sql' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 10000],
+                            'params' => ['type' => 'object'],
+                        ],
+                    ],
+                    'maxItems' => 10,
+                ],
             ],
         ];
     }
@@ -51,6 +76,12 @@ final class DbQueryTool implements ToolInterface, ToolSchemaInterface
     {
         return [
             ['sql' => 'SELECT * FROM orders LIMIT 5', 'params' => []],
+            [
+                'queries' => [
+                    ['sql' => 'PRAGMA table_info(orders)', 'params' => []],
+                    ['sql' => 'SELECT COUNT(*) AS total FROM orders', 'params' => []],
+                ],
+            ],
         ];
     }
 
@@ -61,14 +92,96 @@ final class DbQueryTool implements ToolInterface, ToolSchemaInterface
 
     public function invoke(array $input): string
     {
+        if (isset($input['queries']) && is_array($input['queries']) && $input['queries'] !== []) {
+            return $this->invokeBatch($input['queries']);
+        }
+
         $sql = isset($input['sql']) ? trim((string) $input['sql']) : '';
         if ($sql === '') {
-            return 'DbQueryTool: missing sql.';
+            return 'DbQueryTool: missing sql. Send {"sql":"..."} for one statement or {"queries":[...]} for multiple.';
         }
 
         /** @var array<string, mixed> $params */
         $params = isset($input['params']) && is_array($input['params']) ? $input['params'] : [];
 
+        $statements = $this->parseStatements($sql);
+        if ($statements === []) {
+            return 'DbQueryTool: missing sql.';
+        }
+
+        if (count($statements) > 1) {
+            if (!$this->readOnly) {
+                return 'DbQueryTool error: Multiple SQL statements are not allowed in write mode. Send one sql per call.';
+            }
+
+            $batch = [];
+            foreach ($statements as $statement) {
+                $batch[] = ['sql' => $statement, 'params' => $params];
+            }
+
+            return $this->invokeBatch($batch);
+        }
+
+        return $this->executeStatement($statements[0], $params);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $queries
+     */
+    private function invokeBatch(array $queries): string
+    {
+        if (count($queries) > 10) {
+            return 'DbQueryTool error: At most 10 queries per batch are allowed.';
+        }
+
+        $results = [];
+        foreach ($queries as $index => $query) {
+            if (!is_array($query)) {
+                return sprintf('DbQueryTool error: queries[%d] must be an object with sql.', $index);
+            }
+
+            $sql = isset($query['sql']) ? trim((string) $query['sql']) : '';
+            if ($sql === '') {
+                return sprintf('DbQueryTool error: queries[%d] is missing sql.', $index);
+            }
+
+            /** @var array<string, mixed> $params */
+            $params = isset($query['params']) && is_array($query['params']) ? $query['params'] : [];
+
+            $statements = $this->parseStatements($sql);
+            if ($statements === []) {
+                return sprintf('DbQueryTool error: queries[%d] is missing sql.', $index);
+            }
+
+            if (count($statements) > 1) {
+                if (!$this->readOnly) {
+                    return sprintf('DbQueryTool error: queries[%d] contains multiple statements; send one per queries[] item.', $index);
+                }
+
+                foreach ($statements as $statement) {
+                    $results[] = $this->decodeResult($this->executeStatement($statement, $params));
+                }
+                continue;
+            }
+
+            $results[] = $this->decodeResult($this->executeStatement($statements[0], $params));
+        }
+
+        $failed = array_values(array_filter($results, static fn (array $result): bool => !($result['ok'] ?? false)));
+
+        return json_encode([
+            'ok' => $failed === [],
+            'batch' => true,
+            'statement_count' => count($results),
+            'results' => $results,
+        ], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private function executeStatement(string $sql, array $params): string
+    {
         try {
             $this->guardSql($sql);
 
@@ -124,25 +237,69 @@ final class DbQueryTool implements ToolInterface, ToolSchemaInterface
             ], JSON_THROW_ON_ERROR);
         } catch (\Throwable $e) {
             $this->audit($sql, $params, false, null, null, null, $e->getMessage());
+
             return 'DbQueryTool error: ' . $e->getMessage();
         }
     }
 
-    private function guardSql(string $sql): void
+    /**
+     * @return array<int, string>
+     */
+    private function parseStatements(string $sql): array
     {
-        if (str_contains($sql, ';')) {
-            throw new InvalidArgumentException('Multiple SQL statements are not allowed.');
+        $sql = trim($sql);
+        if ($sql === '') {
+            return [];
         }
 
+        $sql = rtrim($sql, " \t\n\r;");
+
+        if ($sql === '') {
+            return [];
+        }
+
+        if (!str_contains($sql, ';')) {
+            return [$sql];
+        }
+
+        $parts = preg_split('/;\s*/', $sql) ?: [];
+        $statements = [];
+        foreach ($parts as $part) {
+            $part = trim((string) $part);
+            if ($part !== '') {
+                $statements[] = $part;
+            }
+        }
+
+        return $statements;
+    }
+
+    /** @return array<string, mixed> */
+    private function decodeResult(string $output): array
+    {
+        if (!str_starts_with($output, '{')) {
+            return ['ok' => false, 'error' => $output];
+        }
+
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        return $decoded;
+    }
+
+    private function guardSql(string $sql): void
+    {
         $normalized = strtolower(trim(preg_replace('/\s+/', ' ', $sql) ?? $sql));
 
         if ($this->readOnly) {
             $isReadOp = str_starts_with($normalized, 'select ')
                 || str_starts_with($normalized, 'with ')
-                || str_starts_with($normalized, 'pragma table_info(');
+                || str_starts_with($normalized, 'pragma table_info(')
+                || str_starts_with($normalized, 'pragma table_list')
+                || str_starts_with($normalized, 'pragma index_list(');
 
             if (!$isReadOp) {
-                throw new InvalidArgumentException('Read-only DbQueryTool accepts only SELECT/WITH queries.');
+                throw new InvalidArgumentException('Read-only DbQueryTool accepts only SELECT/WITH/PRAGMA introspection queries.');
             }
 
             $denied = [' insert ', ' update ', ' delete ', ' drop ', ' alter ', ' create ', ' truncate ', ' replace ', ' attach ', ' detach ', ' grant ', ' revoke '];
@@ -175,6 +332,7 @@ final class DbQueryTool implements ToolInterface, ToolSchemaInterface
         preg_match_all('/\b(?:from|join|update|into)\s+([a-zA-Z_][a-zA-Z0-9_]*)\b/', $sql, $m);
         /** @var array<int, string> $tables */
         $tables = $m[1];
+
         return array_values(array_unique($tables));
     }
 

@@ -11,6 +11,7 @@ use ML\IDEA\RAG\LLM\AnthropicToolRoutingModel;
 use ML\IDEA\RAG\LLM\AzureOpenAIToolRoutingModel;
 use ML\IDEA\RAG\LLM\OllamaToolRoutingModel;
 use ML\IDEA\RAG\LLM\OpenAIToolRoutingModel;
+use ML\IDEA\RAG\LLM\ProviderToolCallParser;
 use ML\IDEA\RAG\Tools\MathTool;
 use PHPUnit\Framework\TestCase;
 
@@ -322,5 +323,169 @@ final class RagProviderToolRoutingModelTest extends TestCase
         self::assertSame('final', $decision['type']);
         self::assertArrayNotHasKey('tools', $http->body);
         self::assertStringContainsString('strict tool-routing controller', $http->body['messages'][0]['content']);
+    }
+
+    public function testProviderToolCallParserAcceptsObjectArguments(): void
+    {
+        $decision = ProviderToolCallParser::parseChatMessage([
+            'tool_calls' => [[
+                'id' => 'call_1',
+                'type' => 'function',
+                'function' => [
+                    'name' => 'math',
+                    'arguments' => ['expression' => '2+2'],
+                ],
+            ]],
+        ]);
+
+        self::assertSame('tool_call', $decision['type'] ?? null);
+        self::assertSame('math', $decision['tool'] ?? null);
+        self::assertSame('2+2', $decision['input']['expression'] ?? null);
+    }
+
+    public function testOllamaRoutingModelParsesObjectArgumentsFromCloud(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                return [
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => '',
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'math',
+                                'arguments' => ['expression' => '9+1'],
+                            ],
+                        ]],
+                    ],
+                ];
+            }
+        };
+
+        $model = new OllamaToolRoutingModel(http: $http);
+        $decision = $model->respond([['role' => 'user', 'content' => 'calculate 9+1']], []);
+
+        self::assertSame('tool_call', $decision['type']);
+        self::assertSame('9+1', $decision['input']['expression']);
+    }
+
+    public function testOllamaRoutingModelSendsBearerAuthWhenApiKeyConfigured(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            /** @var array<string, string> */
+            public array $headers = [];
+
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                $this->headers = $headers;
+
+                return ['message' => ['content' => '{"type":"final","content":"ok"}']];
+            }
+        };
+
+        $model = new OllamaToolRoutingModel(http: $http, apiKey: 'cloud-secret');
+        $model->respond([['role' => 'user', 'content' => 'hello']], []);
+
+        self::assertSame('Bearer cloud-secret', $http->headers['Authorization'] ?? null);
+    }
+
+    public function testOllamaRoutingModelSendsToolHistoryArgumentsAsObjects(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            /** @var array<string, mixed> */
+            public array $body = [];
+
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                $this->body = $jsonBody;
+
+                return ['message' => ['content' => '{"type":"final","content":"done"}']];
+            }
+        };
+
+        $model = new OllamaToolRoutingModel(http: $http);
+        $model->respond([
+            ['role' => 'user', 'content' => 'calculate 2+3'],
+            [
+                'role' => 'assistant',
+                'content' => '',
+                'tool_calls' => [[
+                    'id' => 'call_math_1',
+                    'type' => 'function',
+                    'function' => [
+                        'name' => 'math',
+                        'arguments' => '{"expression":"2+3"}',
+                    ],
+                ]],
+            ],
+            ['role' => 'tool', 'tool_call_id' => 'call_math_1', 'content' => '{"result":5}'],
+        ], [[
+            'name' => 'math',
+            'description' => 'Evaluate math.',
+            'input_schema' => ['type' => 'object', 'properties' => ['expression' => ['type' => 'string']]],
+        ]]);
+
+        $assistantMessage = null;
+        foreach ($http->body['messages'] as $message) {
+            if (($message['role'] ?? '') === 'assistant' && isset($message['tool_calls'])) {
+                $assistantMessage = $message;
+            }
+        }
+
+        self::assertIsArray($assistantMessage);
+        $arguments = $assistantMessage['tool_calls'][0]['function']['arguments'];
+        self::assertIsArray($arguments);
+        self::assertSame('2+3', $arguments['expression']);
+    }
+
+    public function testOllamaRoutingModelStringifiesArrayMessageContent(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            /** @var array<string, mixed> */
+            public array $body = [];
+
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                $this->body = $jsonBody;
+
+                return ['message' => ['content' => '{"type":"final","content":"ok"}']];
+            }
+        };
+
+        $model = new OllamaToolRoutingModel(http: $http);
+        $model->respond([
+            ['role' => 'user', 'content' => ['text' => 'hello']],
+        ], [['name' => 'math', 'description' => 'Math']]);
+
+        $userMessage = null;
+        foreach ($http->body['messages'] as $message) {
+            if (($message['role'] ?? '') === 'user') {
+                $userMessage = $message;
+            }
+        }
+
+        self::assertIsArray($userMessage);
+        self::assertIsString($userMessage['content']);
+        self::assertStringContainsString('hello', $userMessage['content']);
+    }
+
+    public function testOllamaRoutingModelSurfacesProviderErrors(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                return ['error' => 'model not found'];
+            }
+        };
+
+        $model = new OllamaToolRoutingModel(http: $http);
+
+        $this->expectException(\ML\IDEA\Exceptions\SerializationException::class);
+        $this->expectExceptionMessage('Ollama request failed');
+
+        $model->respond([['role' => 'user', 'content' => 'hello']], []);
     }
 }

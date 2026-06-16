@@ -9,6 +9,14 @@ use ML\IDEA\RAG\Contracts\HttpTransportInterface;
 
 final class SimpleHttpTransport implements HttpTransportInterface
 {
+    public function __construct(
+        private readonly int $timeoutSeconds = 120,
+    ) {
+        if ($this->timeoutSeconds < 1) {
+            throw new \InvalidArgumentException('HTTP timeout must be at least 1 second.');
+        }
+    }
+
     public function postJson(string $url, array $headers, array $jsonBody): array
     {
         $headerLines = [];
@@ -25,7 +33,7 @@ final class SimpleHttpTransport implements HttpTransportInterface
                 'header' => implode("\r\n", $headerLines),
                 'content' => $payload,
                 'ignore_errors' => true,
-                'timeout' => 60,
+                'timeout' => $this->timeoutSeconds,
             ],
         ]);
 

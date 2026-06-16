@@ -21,10 +21,9 @@ final class ProviderToolCallParser
                 $function = isset($call['function']) && is_array($call['function']) ? $call['function'] : [];
                 $id = isset($call['id']) ? (string) $call['id'] : '';
                 $name = isset($function['name']) ? (string) $function['name'] : '';
-                $arguments = isset($function['arguments']) ? (string) $function['arguments'] : '{}';
-                $input = json_decode($arguments, true);
+                $input = self::normalizeToolArguments($function['arguments'] ?? '{}');
                 if ($name !== '') {
-                    $normalized = ['tool' => $name, 'input' => is_array($input) ? $input : []];
+                    $normalized = ['tool' => $name, 'input' => $input];
                     if ($id !== '') {
                         $normalized['provider_call_id'] = $id;
                     }
@@ -49,10 +48,9 @@ final class ProviderToolCallParser
             $function = $message['function_call'];
             $id = isset($function['id']) ? (string) $function['id'] : '';
             $name = isset($function['name']) ? (string) $function['name'] : '';
-            $arguments = isset($function['arguments']) ? (string) $function['arguments'] : '{}';
-            $input = json_decode($arguments, true);
+            $input = self::normalizeToolArguments($function['arguments'] ?? '{}');
             if ($name !== '') {
-                $single = ['type' => 'tool_call', 'tool' => $name, 'input' => is_array($input) ? $input : []];
+                $single = ['type' => 'tool_call', 'tool' => $name, 'input' => $input];
                 if ($id !== '') {
                     $single['provider_call_id'] = $id;
                 }
@@ -112,5 +110,46 @@ final class ProviderToolCallParser
     public static function parseOllamaMessage(array $message): ?array
     {
         return self::parseChatMessage($message);
+    }
+
+    /** @return array<string, mixed> */
+    public static function normalizeToolArguments(mixed $raw): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        if (!is_string($raw) || $raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $toolCalls
+     * @return array<int, array<string, mixed>>
+     */
+    public static function normalizeOutboundToolCalls(array $toolCalls): array
+    {
+        $out = [];
+        foreach ($toolCalls as $call) {
+            if (!is_array($call)) {
+                continue;
+            }
+
+            $normalized = $call;
+            if (isset($call['function']) && is_array($call['function'])) {
+                $function = $call['function'];
+                $function['arguments'] = self::normalizeToolArguments($function['arguments'] ?? '{}');
+                $normalized['function'] = $function;
+            }
+
+            $out[] = $normalized;
+        }
+
+        return $out;
     }
 }
