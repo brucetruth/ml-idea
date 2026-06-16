@@ -336,10 +336,12 @@ final class ToolRoutingAgent
      */
     private function runLoop(AgentState $state, bool $resume = false): \Generator
     {
-        $startedAt = $state->runStartedAt() > 0.0 ? $state->runStartedAt() : microtime(true);
         if (!$resume) {
+            $startedAt = microtime(true);
             $state->setRunStartedAt($startedAt);
             $state->setRunIteration(0);
+        } else {
+            $startedAt = $state->runStartedAt() > 0.0 ? $state->runStartedAt() : microtime(true);
         }
 
         $budget = $this->budget ?? new AgentBudget($this->maxIterations, ($this->toolExecutor ?? new ToolExecutor())->policy()->maxToolCalls());

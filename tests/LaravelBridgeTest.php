@@ -128,6 +128,96 @@ final class LaravelBridgeTest extends TestCase
         self::assertSame('DbLogAgent', $row->agent_name);
         self::assertSame('final', $row->stop_reason);
         self::assertStringContainsString('10', $row->answer);
+        self::assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+            (string) $row->logged_at,
+            'logged_at must be stored in MySQL-compatible Y-m-d H:i:s format',
+        );
+        self::assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+            (string) $row->created_at,
+        );
+        self::assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+            (string) $row->updated_at,
+        );
+    }
+
+    public function testDatabaseAgentRunLoggerInsertsRowOnMysqlWhenConfigured(): void
+    {
+        if (!class_exists(\Illuminate\Database\Capsule\Manager::class)) {
+            self::markTestSkipped('illuminate/database required for database logger test');
+        }
+
+        $host = getenv('MLIDEA_MYSQL_HOST') ?: getenv('MYSQL_HOST');
+        $database = getenv('MLIDEA_MYSQL_DATABASE') ?: getenv('MYSQL_DATABASE');
+        $username = getenv('MLIDEA_MYSQL_USERNAME') ?: getenv('MYSQL_USERNAME');
+        $password = getenv('MLIDEA_MYSQL_PASSWORD') ?: getenv('MYSQL_PASSWORD');
+
+        if ($host === false || $host === '' || $database === false || $database === '') {
+            self::markTestSkipped('Set MLIDEA_MYSQL_HOST and MLIDEA_MYSQL_DATABASE to run MySQL integration test');
+        }
+
+        $capsule = new \Illuminate\Database\Capsule\Manager();
+        $capsule->addConnection([
+            'driver' => 'mysql',
+            'host' => $host,
+            'port' => (int) (getenv('MLIDEA_MYSQL_PORT') ?: getenv('MYSQL_PORT') ?: 3306),
+            'database' => $database,
+            'username' => $username !== false ? $username : 'root',
+            'password' => $password !== false ? $password : '',
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+        ]);
+        $capsule->setAsGlobal();
+        $capsule->bootEloquent();
+        $connection = $capsule->getConnection();
+
+        $table = 'agent_runs_mlidea_test_' . bin2hex(random_bytes(4));
+        $connection->getSchemaBuilder()->create($table, static function ($table): void {
+            $table->string('id', 32)->primary();
+            $table->timestamp('logged_at');
+            $table->string('agent_name');
+            $table->string('session_id', 120)->nullable();
+            $table->text('user_message')->nullable();
+            $table->boolean('resume')->default(false);
+            $table->text('answer');
+            $table->string('stop_reason', 64);
+            $table->unsignedSmallInteger('iterations')->default(0);
+            $table->text('tool_calls');
+            $table->text('decisions');
+            $table->text('usage');
+            $table->text('budget');
+            $table->text('telemetry')->nullable();
+            $table->text('pending_approval')->nullable();
+            $table->timestamps();
+        });
+
+        try {
+            $manager = new ToolRoutingAgentManager(
+                static fn (string $class): object => new $class(),
+                [
+                    'model' => ['driver' => 'heuristic'],
+                    'agent' => ['name' => 'MysqlDbLogAgent', 'max_iterations' => 4],
+                    'tools' => [MathTool::class],
+                    'store' => ['driver' => 'none'],
+                    'tracing' => ['driver' => 'noop'],
+                    'logging' => ['driver' => 'database', 'table' => $table],
+                ],
+                $connection,
+            );
+
+            $manager->chat('calculate 6+6');
+
+            $row = $connection->table($table)->first();
+            self::assertNotNull($row);
+            self::assertMatchesRegularExpression(
+                '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+                (string) $row->logged_at,
+            );
+        } finally {
+            $connection->getSchemaBuilder()->dropIfExists($table);
+        }
     }
 
     public function testManagerDispatchesAgentRunCompletedEvent(): void

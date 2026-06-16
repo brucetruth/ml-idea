@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ML\IDEA\RAG\LLM;
 
+use ML\IDEA\Exceptions\SerializationException;
 use ML\IDEA\RAG\Contracts\HttpTransportInterface;
 use ML\IDEA\RAG\Contracts\ToolRoutingModelInterface;
 use ML\IDEA\RAG\Http\SimpleHttpTransport;
@@ -15,6 +16,7 @@ final class OllamaToolRoutingModel implements ToolRoutingModelInterface
         private readonly string $baseUrl = 'http://localhost:11434',
         private readonly HttpTransportInterface $http = new SimpleHttpTransport(),
         private readonly bool $useNativeTools = true,
+        private readonly ?string $apiKey = null,
     ) {
     }
 
@@ -32,9 +34,11 @@ final class OllamaToolRoutingModel implements ToolRoutingModelInterface
 
         $response = $this->http->postJson(
             rtrim($this->baseUrl, '/') . '/api/chat',
-            [],
+            $this->requestHeaders(),
             $body,
         );
+
+        $this->throwOnProviderError($response);
 
         $message = isset($response['message']) && is_array($response['message']) ? $response['message'] : [];
         $toolDecision = ProviderToolCallParser::parseOllamaMessage($message);
@@ -42,7 +46,7 @@ final class OllamaToolRoutingModel implements ToolRoutingModelInterface
             return $toolDecision;
         }
 
-        $content = (string) ($message['content'] ?? '');
+        $content = self::stringifyContent($message['content'] ?? '');
         return ToolRoutingDecisionParser::parse($content);
     }
 
@@ -69,7 +73,7 @@ final class OllamaToolRoutingModel implements ToolRoutingModelInterface
         $out = [];
         foreach ($messages as $msg) {
             $role = isset($msg['role']) ? (string) $msg['role'] : 'user';
-            $content = isset($msg['content']) ? (string) $msg['content'] : '';
+            $content = self::stringifyContent($msg['content'] ?? '');
 
             if ($role === 'tool') {
                 if (isset($msg['tool_call_id'])) {
@@ -81,7 +85,11 @@ final class OllamaToolRoutingModel implements ToolRoutingModelInterface
             }
 
             if ($role === 'assistant' && isset($msg['tool_calls']) && is_array($msg['tool_calls'])) {
-                $out[] = ['role' => 'assistant', 'content' => $content, 'tool_calls' => $msg['tool_calls']];
+                $out[] = [
+                    'role' => 'assistant',
+                    'content' => $content,
+                    'tool_calls' => ProviderToolCallParser::normalizeOutboundToolCalls($msg['tool_calls']),
+                ];
                 continue;
             }
 
@@ -124,7 +132,7 @@ final class OllamaToolRoutingModel implements ToolRoutingModelInterface
         $out = [['role' => 'system', 'content' => $system]];
         foreach ($messages as $msg) {
             $role = isset($msg['role']) ? (string) $msg['role'] : 'user';
-            $content = isset($msg['content']) ? (string) $msg['content'] : '';
+            $content = self::stringifyContent($msg['content'] ?? '');
 
             if ($role === 'tool') {
                 $out[] = ['role' => 'assistant', 'content' => 'TOOL_RESULT: ' . $content];
@@ -139,5 +147,46 @@ final class OllamaToolRoutingModel implements ToolRoutingModelInterface
         }
 
         return $out;
+    }
+
+    /** @return array<string, string> */
+    private function requestHeaders(): array
+    {
+        if ($this->apiKey === null || $this->apiKey === '') {
+            return [];
+        }
+
+        return ['Authorization' => 'Bearer ' . $this->apiKey];
+    }
+
+    /** @param array<string, mixed> $response */
+    private function throwOnProviderError(array $response): void
+    {
+        if (!isset($response['error'])) {
+            return;
+        }
+
+        if (is_array($response['error'])) {
+            $message = isset($response['error']['message']) ? (string) $response['error']['message'] : 'Unknown Ollama error.';
+            $code = isset($response['error']['code']) ? (string) $response['error']['code'] : 'unknown_error';
+            throw new SerializationException(sprintf('Ollama request failed (%s): %s', $code, $message));
+        }
+
+        if (is_string($response['error']) && $response['error'] !== '') {
+            throw new SerializationException('Ollama request failed: ' . $response['error']);
+        }
+    }
+
+    private static function stringifyContent(mixed $content): string
+    {
+        if (is_string($content)) {
+            return $content;
+        }
+
+        if (is_array($content)) {
+            return json_encode($content, JSON_THROW_ON_ERROR);
+        }
+
+        return (string) $content;
     }
 }

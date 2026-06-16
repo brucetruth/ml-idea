@@ -86,4 +86,75 @@ final class RagDbQueryToolTest extends TestCase
 
         @unlink($logPath);
     }
+
+    public function testDbQueryToolAllowsTrailingSemicolon(): void
+    {
+        if (!in_array('sqlite', \PDO::getAvailableDrivers(), true)) {
+            self::markTestSkipped('sqlite PDO driver is not available.');
+        }
+
+        $pdo = new \PDO('sqlite::memory:');
+        $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT)');
+        $pdo->exec("INSERT INTO orders(customer) VALUES ('Bruce')");
+
+        $tool = new DbQueryTool($pdo, allowedTables: ['orders'], readOnly: true);
+        $output = $tool->invoke(['sql' => 'SELECT customer FROM orders;']);
+
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue((bool) $decoded['ok']);
+        self::assertSame(1, $decoded['row_count']);
+    }
+
+    public function testDbQueryToolRunsMultipleReadOnlyStatementsFromQueriesArray(): void
+    {
+        if (!in_array('sqlite', \PDO::getAvailableDrivers(), true)) {
+            self::markTestSkipped('sqlite PDO driver is not available.');
+        }
+
+        $pdo = new \PDO('sqlite::memory:');
+        $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT, amount REAL)');
+        $pdo->exec("INSERT INTO orders(customer, amount) VALUES ('Bruce', 120.50), ('Ava', 45.25)");
+
+        $tool = new DbQueryTool($pdo, allowedTables: ['orders'], readOnly: true);
+        $output = $tool->invoke([
+            'queries' => [
+                ['sql' => 'SELECT COUNT(*) AS total FROM orders'],
+                ['sql' => 'SELECT customer FROM orders WHERE amount > :min_amount', 'params' => ['min_amount' => 100]],
+            ],
+        ]);
+
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue((bool) $decoded['ok']);
+        self::assertTrue((bool) $decoded['batch']);
+        self::assertSame(2, $decoded['statement_count']);
+        self::assertSame(2, $decoded['results'][0]['rows'][0]['total']);
+        self::assertSame('Bruce', $decoded['results'][1]['rows'][0]['customer']);
+    }
+
+    public function testDbQueryToolRunsSemicolonSeparatedReadOnlyStatementsInSqlField(): void
+    {
+        if (!in_array('sqlite', \PDO::getAvailableDrivers(), true)) {
+            self::markTestSkipped('sqlite PDO driver is not available.');
+        }
+
+        $pdo = new \PDO('sqlite::memory:');
+        $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('CREATE TABLE orders (id INTEGER PRIMARY KEY, customer TEXT)');
+        $pdo->exec("INSERT INTO orders(customer) VALUES ('Bruce'), ('Ava')");
+
+        $tool = new DbQueryTool($pdo, allowedTables: ['orders'], readOnly: true);
+        $output = $tool->invoke([
+            'sql' => 'SELECT COUNT(*) AS total FROM orders; SELECT customer FROM orders ORDER BY id DESC LIMIT 1;',
+        ]);
+
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue((bool) $decoded['ok']);
+        self::assertTrue((bool) $decoded['batch']);
+        self::assertSame(2, $decoded['statement_count']);
+    }
 }

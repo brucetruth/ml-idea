@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ML\IDEA\Tests;
 
+use ML\IDEA\RAG\Agents\AgentBudget;
 use ML\IDEA\RAG\Agents\AgentState;
 use ML\IDEA\RAG\Agents\JsonFileAgentStateStore;
 use ML\IDEA\RAG\Agents\ToolRoutingAgent;
@@ -39,6 +40,40 @@ final class RagAgentSessionTest extends TestCase
         self::assertGreaterThan(count($first['trace']), count($second['trace']));
 
         @unlink($dir . '/session-a.json');
+        @rmdir($dir);
+    }
+
+    public function testChatInSessionResetsRuntimeClockBetweenTurns(): void
+    {
+        $dir = sys_get_temp_dir() . '/ml_idea_agent_session_' . uniqid('', true);
+        $store = new JsonFileAgentStateStore($dir);
+        $model = new class () implements ToolRoutingModelInterface {
+            public function respond(array $messages, array $tools): array
+            {
+                return ['type' => 'final', 'content' => 'ok'];
+            }
+        };
+
+        $agent = new ToolRoutingAgent(
+            $model,
+            [new MathTool()],
+            budget: new AgentBudget(maxRuntimeMs: 30_000),
+            stateStore: $store,
+        );
+
+        $first = $agent->chatInSession('runtime-session', 'first');
+        self::assertSame('final', $first['stop_reason']);
+
+        $state = $store->load('runtime-session');
+        self::assertNotNull($state);
+        $state->setRunStartedAt(microtime(true) - 3600);
+        $store->save('runtime-session', $state);
+
+        $second = $agent->chatInSession('runtime-session', 'second');
+        self::assertSame('final', $second['stop_reason']);
+        self::assertNotSame('runtime_budget_exceeded', $second['stop_reason']);
+
+        @unlink($dir . '/runtime-session.json');
         @rmdir($dir);
     }
 
