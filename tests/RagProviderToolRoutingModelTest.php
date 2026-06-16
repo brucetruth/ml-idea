@@ -16,6 +16,52 @@ use PHPUnit\Framework\TestCase;
 
 final class RagProviderToolRoutingModelTest extends TestCase
 {
+    public function testOpenAIRoutingModelOmitsTemperatureForGpt5Nano(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            /** @var array<string, mixed> */
+            public array $body = [];
+
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                $this->body = $jsonBody;
+
+                return [
+                    'choices' => [[
+                        'message' => ['content' => '{"type":"final","content":"ok"}'],
+                    ]],
+                ];
+            }
+        };
+
+        $model = new OpenAIToolRoutingModel('test-key', model: 'gpt-5-nano', http: $http);
+        $model->respond([['role' => 'user', 'content' => 'hello']], []);
+
+        self::assertArrayNotHasKey('temperature', $http->body);
+    }
+
+    public function testOpenAIRoutingModelSurfacesProviderErrors(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                return [
+                    'error' => [
+                        'message' => 'Unsupported value',
+                        'code' => 'unsupported_value',
+                    ],
+                ];
+            }
+        };
+
+        $model = new OpenAIToolRoutingModel('test-key', http: $http);
+
+        $this->expectException(\ML\IDEA\Exceptions\SerializationException::class);
+        $this->expectExceptionMessage('OpenAI request failed');
+
+        $model->respond([['role' => 'user', 'content' => 'hello']], []);
+    }
+
     public function testOpenAIRoutingModelSendsNativeToolsAndParsesToolCall(): void
     {
         $http = new class () implements HttpTransportInterface {
@@ -61,6 +107,52 @@ final class RagProviderToolRoutingModelTest extends TestCase
         self::assertArrayHasKey('tools', $http->body);
         self::assertSame('function', $http->body['tools'][0]['type']);
         self::assertSame('math', $http->body['tools'][0]['function']['name']);
+    }
+
+    public function testAzureRoutingModelOmitsTemperatureForGpt5NanoDeployment(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            /** @var array<string, mixed> */
+            public array $body = [];
+
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                $this->body = $jsonBody;
+
+                return [
+                    'choices' => [[
+                        'message' => ['content' => '{"type":"final","content":"ok"}'],
+                    ]],
+                ];
+            }
+        };
+
+        $model = new AzureOpenAIToolRoutingModel('key', 'https://example.test', 'gpt-5-nano', http: $http);
+        $model->respond([['role' => 'user', 'content' => 'hello']], []);
+
+        self::assertArrayNotHasKey('temperature', $http->body);
+    }
+
+    public function testAzureRoutingModelSurfacesProviderErrors(): void
+    {
+        $http = new class () implements HttpTransportInterface {
+            public function postJson(string $url, array $headers, array $jsonBody): array
+            {
+                return [
+                    'error' => [
+                        'message' => 'Unsupported value',
+                        'code' => 'unsupported_value',
+                    ],
+                ];
+            }
+        };
+
+        $model = new AzureOpenAIToolRoutingModel('key', 'https://example.test', 'deployment', http: $http);
+
+        $this->expectException(\ML\IDEA\Exceptions\SerializationException::class);
+        $this->expectExceptionMessage('Azure OpenAI request failed');
+
+        $model->respond([['role' => 'user', 'content' => 'hello']], []);
     }
 
     public function testAzureRoutingModelParsesMultipleNativeToolCalls(): void

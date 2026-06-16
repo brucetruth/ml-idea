@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ML\IDEA\RAG\LLM;
 
 use ML\IDEA\Exceptions\InvalidArgumentException;
+use ML\IDEA\Exceptions\SerializationException;
 use ML\IDEA\RAG\Agents\AgentUsage;
 use ML\IDEA\RAG\Contracts\HttpTransportInterface;
 use ML\IDEA\RAG\Contracts\ToolRoutingModelInterface;
@@ -34,8 +35,12 @@ final class OpenAIToolRoutingModel implements ToolRoutingModelInterface, UsageAw
         $body = [
             'model' => $this->model,
             'messages' => $this->toProviderMessages($messages, $tools),
-            'temperature' => 0.1,
         ];
+
+        if ($this->supportsCustomTemperature()) {
+            $body['temperature'] = 0.1;
+        }
+
         if ($providerTools !== []) {
             $body['tools'] = $providerTools;
             $body['tool_choice'] = 'auto';
@@ -46,6 +51,12 @@ final class OpenAIToolRoutingModel implements ToolRoutingModelInterface, UsageAw
             ['Authorization' => 'Bearer ' . $this->apiKey],
             $body
         );
+
+        if (isset($response['error']) && is_array($response['error'])) {
+            $message = isset($response['error']['message']) ? (string) $response['error']['message'] : 'Unknown OpenAI error.';
+            $code = isset($response['error']['code']) ? (string) $response['error']['code'] : 'unknown_error';
+            throw new SerializationException(sprintf('OpenAI request failed (%s): %s', $code, $message));
+        }
         $this->lastUsage = isset($response['usage']) && is_array($response['usage'])
             ? AgentUsage::fromProviderUsage($response['usage'], $this->costPer1kTokens)
             : new AgentUsage();
@@ -65,6 +76,21 @@ final class OpenAIToolRoutingModel implements ToolRoutingModelInterface, UsageAw
     public function lastUsage(): AgentUsage
     {
         return $this->lastUsage;
+    }
+
+    private function supportsCustomTemperature(): bool
+    {
+        $model = strtolower($this->model);
+
+        if (preg_match('/^(gpt-5|o1|o3)/', $model) === 1) {
+            return false;
+        }
+
+        if (str_contains($model, 'nano') || str_contains($model, 'mini')) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

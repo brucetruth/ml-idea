@@ -42,24 +42,28 @@ final class AzureOpenAIToolRoutingModel implements ToolRoutingModelInterface, Us
         $providerTools = ProviderToolPayloadBuilder::openAiTools($tools);
         $body = [
             'messages' => $this->toProviderMessages($messages, $tools),
-            // gpt-5 mini/nano Azure deployments currently only support the default temperature (1).
-            'temperature' => $this->resolveTemperature(),
         ];
+
+        if ($this->supportsCustomTemperature()) {
+            $body['temperature'] = 0.1;
+        }
+
         if ($providerTools !== []) {
             $body['tools'] = $providerTools;
             $body['tool_choice'] = 'auto';
         }
 
         $response = $this->http->postJson($url, ['api-key' => $this->apiKey], $body);
-        $this->lastUsage = isset($response['usage']) && is_array($response['usage'])
-            ? AgentUsage::fromProviderUsage($response['usage'], $this->costPer1kTokens)
-            : new AgentUsage();
 
         if (isset($response['error']) && is_array($response['error'])) {
             $message = isset($response['error']['message']) ? (string) $response['error']['message'] : 'Unknown Azure OpenAI error.';
             $code = isset($response['error']['code']) ? (string) $response['error']['code'] : 'unknown_error';
             throw new SerializationException(sprintf('Azure OpenAI request failed (%s): %s', $code, $message));
         }
+
+        $this->lastUsage = isset($response['usage']) && is_array($response['usage'])
+            ? AgentUsage::fromProviderUsage($response['usage'], $this->costPer1kTokens)
+            : new AgentUsage();
 
         $message = isset($response['choices'][0]['message']) && is_array($response['choices'][0]['message'])
             ? $response['choices'][0]['message']
@@ -78,14 +82,19 @@ final class AzureOpenAIToolRoutingModel implements ToolRoutingModelInterface, Us
         return $this->lastUsage;
     }
 
-    private function resolveTemperature(): float|int
+    private function supportsCustomTemperature(): bool
     {
         $deployment = strtolower($this->deployment);
-        if (str_contains($deployment, 'mini') || str_contains($deployment, 'nano')) {
-            return 1;
+
+        if (preg_match('/^(gpt-5|o1|o3)/', $deployment) === 1) {
+            return false;
         }
 
-        return 0.1;
+        if (str_contains($deployment, 'nano') || str_contains($deployment, 'mini')) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
