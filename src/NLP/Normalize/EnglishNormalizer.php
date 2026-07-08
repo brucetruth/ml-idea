@@ -12,7 +12,7 @@ namespace ML\IDEA\NLP\Normalize;
  */
 final class EnglishNormalizer
 {
-    private const int MIN_LENGTH = 4;
+    private const MIN_LENGTH = 4;
 
     public static function normalize(string $token): string
     {

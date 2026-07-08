@@ -9,7 +9,7 @@ use ML\IDEA\NLP\Normalize\UnicodeNormalizer;
 
 final class GazetteerEntityRecognizer
 {
-    private const int AHO_CORASICK_MAX_PATTERNS = 1000;
+    private const AHO_CORASICK_MAX_PATTERNS = 1000;
 
     /** @var array<string, string> */
     private array $patterns = [];

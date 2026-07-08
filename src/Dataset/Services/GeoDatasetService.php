@@ -10,7 +10,7 @@ use ML\IDEA\Exceptions\InvalidArgumentException;
 
 final class GeoDatasetService
 {
-    private const int FULL_CITY_LOAD_MAX_BYTES = 4_000_000;
+    private const FULL_CITY_LOAD_MAX_BYTES = 4_000_000;
     /** @var array<int, array<string, mixed>>|null */
     private ?array $countries = null;
     /** @var array<int, array<string, mixed>>|null */

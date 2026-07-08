@@ -10,7 +10,7 @@ use ML\IDEA\Dataset\Registry\DatasetPaths;
 
 final class WordNetLexicon
 {
-    private const int STREAMING_THRESHOLD_BYTES = 1_048_576;
+    private const STREAMING_THRESHOLD_BYTES = 1_048_576;
 
     private readonly string $datasetPath;
 
